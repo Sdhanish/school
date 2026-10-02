@@ -1,0 +1,33 @@
+# CodeIgniter gitignore
+/application/cache/*
+!/application/cache/index.html
+!/application/cache/sessions
+/application/cache/sessions/*
+!/application/cache/sessions/.htaccess
+!/application/cache/sessions/index.html
+
+/application/logs/*
+!/application/logs/index.html
+
+/uploads/*
+!/uploads/index.html
+
+scratch/*
+.env
+node_modules/
+playwright-report/
+test-results/
+tests/test_assets/sample_oversized_*
+/vendor/
+composer.phar
+
+# Database backup files (large SQL dumps — keep out of repo)
+*.sql
+!/database/migrations/*.php
+
+# Test session cookies
+tests/cookie.txt
+tests/fixtures/*.json
+
+
+.kilo/worktrees/

@@ -1,0 +1,22 @@
+{
+  "name": "school-management-e2e",
+  "version": "1.0.0",
+  "description": "Playwright E2E testing suite for School Management Software",
+  "main": "index.js",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "dotenv": "^16.4.7"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "intl-tel-input": "^29.2.3",
+    "jspdf": "^4.2.1",
+    "libphonenumber-js": "^1.13.13"
+  }
+}

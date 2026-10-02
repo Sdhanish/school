@@ -1,0 +1,801 @@
+/* Centralized Design Token System: Sky Blue + Beige + White */
+:root {
+  --color-sky-blue: #357AC4;
+  --color-beige: #F3EEE9;
+  --color-white: #FFFFFF;
+  --color-dark-text: #243746;
+  --color-muted-text: #607482;
+  --color-border: #DCE4E8;
+  --color-light-blue: #EAF2F7;
+  --color-primary: #357AC4;
+  --color-primary-dark: #2C68A8;
+  --color-sidebar-border: #B8CCD9;
+
+  /* Centralized Action Button Token System */
+  --button-primary: #357AC4;
+  --button-primary-hover: #2C68A8;
+  --button-primary-active: #23548A;
+  --button-primary-disabled: #A8C2DC;
+  --button-primary-text: #FFFFFF;
+
+  /* Semantic status colors (softened to harmonize) */
+  --color-success-bg: #E6F4EA;
+  --color-success-text: #1E7E34;
+  --color-success-border: #CEEAD6;
+  --color-warning-bg: #FEF7E0;
+  --color-warning-text: #B06000;
+  --color-warning-border: #FEEFC3;
+  --color-error-bg: #FCE8E6;
+  --color-error-text: #C5221F;
+  --color-error-border: #FAD2CF;
+  --color-orange-bg: #FFF0E0;
+  --color-orange-text: #D96B00;
+  --color-orange-border: #FFE0B2;
+  --color-gray-bg: #F1F3F4;
+  --color-gray-text: #5F6368;
+  --color-gray-border: #DADCE0;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-dark-text);
+}
+
+.login-bg {
+  background-color: #f4f7f9;
+  background-image: radial-gradient(#dce4e8 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.glass-card {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+/* Thin, quiet scrollbars for tables + general scroll */
+.app-scroll::-webkit-scrollbar,
+nav.overflow-y-auto::-webkit-scrollbar,
+.table-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.app-scroll::-webkit-scrollbar-thumb,
+nav.overflow-y-auto::-webkit-scrollbar-thumb,
+.table-scroll::-webkit-scrollbar-thumb {
+  background-color: #dce4e8;
+  border-radius: 9999px;
+}
+.app-scroll::-webkit-scrollbar-thumb:hover,
+nav.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #357AC4;
+}
+
+/* Sidebar scrollbar */
+#app-sidebar nav::-webkit-scrollbar {
+  width: 5px;
+}
+#app-sidebar nav::-webkit-scrollbar-thumb {
+  background-color: rgba(111, 143, 163, 0.3);
+  border-radius: 9999px;
+}
+#app-sidebar nav::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(111, 143, 163, 0.5);
+}
+
+/* Smooth transition on module expansion */
+.nav-group {
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Desktop icon-rail collapse (toggled via body.sidebar-collapsed) */
+@media (min-width: 1024px) {
+  body.sidebar-collapsed #app-sidebar { width: 76px; }
+  body.sidebar-collapsed .sidebar-label { display: none; }
+  body.sidebar-collapsed #app-sidebar nav { overflow: visible; }
+  body.sidebar-collapsed .nav-children { display: none !important; }
+}
+
+/* Card shadows matching SaaS elevation spec */
+.elevation-1 {
+  box-shadow: 0px 1px 3px rgba(36, 55, 70, 0.04), 0px 4px 6px rgba(36, 55, 70, 0.02);
+}
+.elevation-2 {
+  box-shadow: 0px 10px 15px -3px rgba(36, 55, 70, 0.06);
+}
+
+.zebra tbody tr:nth-child(even) { background-color: #f7fafc; }
+
+table.data-table th {
+  position: sticky;
+  top: 0;
+  background: #eaf2f7;
+  color: var(--color-dark-text);
+  z-index: 1;
+}
+
+/* DataTables Sky Blue + Beige + White Theme */
+.dataTables_wrapper {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: var(--color-dark-text);
+  padding: 12px 16px;
+}
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter {
+  margin-bottom: 12px;
+  color: var(--color-muted-text);
+}
+.dataTables_wrapper .dataTables_length select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 4px 28px 4px 8px;
+  font-size: 13px;
+  color: var(--color-dark-text);
+  background-color: #ffffff;
+  outline: none;
+}
+.dataTables_wrapper .dataTables_filter input {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--color-dark-text);
+  background-color: #ffffff;
+  margin-left: 6px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dataTables_wrapper .dataTables_filter input:focus,
+.dataTables_wrapper .dataTables_length select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(111, 143, 163, 0.2);
+}
+.dataTables_wrapper .dataTables_info {
+  color: var(--color-muted-text);
+  padding-top: 14px;
+}
+.dataTables_wrapper .dataTables_paginate {
+  padding-top: 10px;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  border-radius: 6px !important;
+  border: 1px solid transparent !important;
+  padding: 4px 10px !important;
+  margin: 0 2px !important;
+  color: var(--color-muted-text) !important;
+  font-weight: 500;
+  font-size: 12px;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+  background: var(--color-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--color-primary) !important;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: var(--color-light-blue) !important;
+  color: var(--color-dark-text) !important;
+}
+.dataTables_wrapper .dataTables_processing {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(36, 55, 70, 0.08);
+  color: var(--color-primary) !important;
+  font-weight: 600;
+}
+table.dataTable thead th,
+table.dataTable thead td {
+  background-color: var(--color-light-blue) !important;
+  color: var(--color-dark-text) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  font-weight: 600 !important;
+}
+table.dataTable tbody tr {
+  background-color: #ffffff;
+}
+table.dataTable tbody tr:hover {
+  background-color: #f4f8fa !important;
+}
+table.dataTable tbody tr.selected,
+table.dataTable tbody tr.selected td,
+table.dataTable tbody tr.selected th,
+table.dataTable tbody tr.selected a,
+table.dataTable tbody tr.selected span,
+table.dataTable tbody tr.selected strong {
+  background-color: var(--color-sky-blue) !important;
+  color: #ffffff !important;
+}
+table.dataTable tbody tr.selected .material-symbols-outlined {
+  color: #ffffff !important;
+}
+table.dataTable tbody tr.selected:hover,
+table.dataTable tbody tr.selected:hover td,
+table.dataTable tbody tr.selected:hover th {
+  background-color: var(--color-primary-dark) !important;
+  color: #ffffff !important;
+}
+table.dataTable.no-footer {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.bg-button-primary {
+  background-color: var(--button-primary) !important;
+  color: #ffffff !important;
+}
+.hover\:bg-button-primary-hover:hover {
+  background-color: var(--button-primary-hover) !important;
+  color: #ffffff !important;
+}
+
+/* Centralized Primary Action Button System (#357AC4) */
+.btn-primary,
+.button-primary,
+.btn-submit,
+button.btn-primary,
+a.btn-primary,
+button.bg-button-primary,
+a.bg-button-primary {
+  background-color: var(--button-primary) !important;
+  color: var(--button-primary-text) !important;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover,
+.button-primary:hover,
+.btn-submit:hover,
+button.btn-primary:hover,
+a.btn-primary:hover,
+button.bg-button-primary:hover,
+a.bg-button-primary:hover,
+button.bg-secondary:hover,
+a.bg-secondary:hover,
+button.bg-primary:hover,
+a.bg-primary:hover {
+  background-color: var(--button-primary-hover) !important;
+  color: var(--button-primary-text) !important;
+}
+.btn-primary:focus,
+.button-primary:focus,
+.btn-submit:focus,
+button.btn-primary:focus,
+a.btn-primary:focus,
+button.bg-button-primary:focus,
+a.bg-button-primary:focus,
+button.bg-secondary:focus,
+a.bg-secondary:focus,
+button.bg-primary:focus,
+a.bg-primary:focus {
+  color: var(--button-primary-text) !important;
+}
+.btn-primary:active,
+.button-primary:active,
+.btn-submit:active,
+button.btn-primary:active,
+a.btn-primary:active,
+button.bg-button-primary:active,
+a.bg-button-primary:active,
+button.bg-secondary:active,
+a.bg-secondary:active,
+button.bg-primary:active,
+a.bg-primary:active {
+  background-color: var(--button-primary-active) !important;
+  transform: scale(0.99);
+  color: var(--button-primary-text) !important;
+}
+.btn-primary:disabled,
+.btn-primary[disabled],
+button.btn-primary:disabled,
+button[type="submit"]:disabled,
+button.bg-button-primary:disabled,
+button.bg-button-primary[disabled],
+button.bg-secondary:disabled,
+button.bg-secondary[disabled],
+button.bg-primary:disabled,
+button.bg-primary[disabled] {
+  background-color: var(--button-primary-disabled) !important;
+  color: #ffffff !important;
+  cursor: not-allowed !important;
+  opacity: 0.75 !important;
+}
+.btn-primary .material-symbols-outlined,
+.button-primary .material-symbols-outlined,
+.btn-submit .material-symbols-outlined,
+button.btn-primary .material-symbols-outlined,
+a.btn-primary .material-symbols-outlined,
+button.bg-button-primary .material-symbols-outlined,
+a.bg-button-primary .material-symbols-outlined,
+button.bg-secondary .material-symbols-outlined,
+a.bg-secondary .material-symbols-outlined,
+button.bg-primary .material-symbols-outlined,
+a.bg-primary .material-symbols-outlined {
+  color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GLOBAL CONTRAST RULES FOR SOLID PRIMARY BLUE BACKGROUNDS (#357AC4)
+   ════════════════════════════════════════════════════════════════════════ */
+/* Ensure elements with solid primary blue backgrounds use white text by default */
+.bg-primary:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]),
+.bg-primary-fixed:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]),
+.bg-secondary:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]),
+.bg-secondary-fixed:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]),
+.bg-sky-blue:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]),
+.bg-dark-blue:not([class*="/"]):not([class*="hover:"]):not([class*="group-hover:"]) {
+  color: #ffffff;
+}
+
+/* Ensure material icons direct children of solid primary blue buttons/badges render white */
+button.bg-primary > .material-symbols-outlined,
+button.bg-primary-fixed > .material-symbols-outlined,
+button.bg-secondary > .material-symbols-outlined,
+button.bg-secondary-fixed > .material-symbols-outlined,
+button.bg-sky-blue > .material-symbols-outlined,
+button.bg-dark-blue > .material-symbols-outlined,
+a.bg-primary > .material-symbols-outlined,
+a.bg-secondary > .material-symbols-outlined,
+span.bg-primary > .material-symbols-outlined,
+span.bg-secondary > .material-symbols-outlined,
+span.bg-sky-blue > .material-symbols-outlined {
+  color: #ffffff !important;
+}
+
+/* Guard against elements that have BOTH a solid blue background AND text-primary / text-secondary on themselves */
+.bg-primary.text-primary,
+.bg-primary-fixed.text-primary,
+.bg-secondary.text-primary,
+.bg-secondary-fixed.text-primary,
+.bg-sky-blue.text-primary,
+.bg-dark-blue.text-primary,
+.bg-primary.text-secondary,
+.bg-primary-fixed.text-secondary,
+.bg-secondary.text-secondary,
+.bg-secondary-fixed.text-secondary {
+  color: #ffffff !important;
+}
+
+/* Hover contrast for elements transitioning to solid primary blue */
+.hover\:bg-surface-container-highest:hover,
+button.hover\:bg-surface-container-highest:hover,
+a.hover\:bg-surface-container-highest:hover,
+.hover\:bg-primary-fixed:hover:not([class*="/"]),
+button.hover\:bg-primary-fixed:hover:not([class*="/"]),
+a.hover\:bg-primary-fixed:hover:not([class*="/"]),
+.hover\:bg-primary:hover:not([class*="/"]),
+button.hover\:bg-primary:hover:not([class*="/"]),
+a.hover\:bg-primary:hover:not([class*="/"]),
+.hover\:bg-secondary:hover:not([class*="/"]),
+button.hover\:bg-secondary:hover:not([class*="/"]),
+a.hover\:bg-secondary:hover:not([class*="/"]) {
+  color: #ffffff !important;
+}
+
+.hover\:bg-surface-container-highest:hover .material-symbols-outlined,
+button.hover\:bg-surface-container-highest:hover .material-symbols-outlined,
+a.hover\:bg-surface-container-highest:hover .material-symbols-outlined,
+.hover\:bg-primary-fixed:hover:not([class*="/"]) .material-symbols-outlined,
+button.hover\:bg-primary-fixed:hover:not([class*="/"]) .material-symbols-outlined,
+a.hover\:bg-primary-fixed:hover:not([class*="/"]) .material-symbols-outlined,
+.hover\:bg-primary:hover:not([class*="/"]) .material-symbols-outlined,
+button.hover\:bg-primary:hover:not([class*="/"]) .material-symbols-outlined,
+a.hover\:bg-primary:hover:not([class*="/"]) .material-symbols-outlined,
+.hover\:bg-secondary:hover:not([class*="/"]) .material-symbols-outlined,
+button.hover\:bg-secondary:hover:not([class*="/"]) .material-symbols-outlined,
+a.hover\:bg-secondary:hover:not([class*="/"]) .material-symbols-outlined {
+  color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SIDEBAR & LIGHT CONTAINER CONTRAST RULES
+   ════════════════════════════════════════════════════════════════════════ */
+/* White Brand Logo Square in Sidebar */
+#app-sidebar .bg-white.text-primary,
+#app-sidebar .bg-white .text-primary,
+#app-sidebar .bg-white .material-symbols-outlined {
+  color: var(--color-primary) !important;
+}
+
+/* Active Single Top-Level Module (e.g. Dashboard) */
+#app-sidebar .nav-group a.bg-white,
+#app-sidebar .nav-group a.bg-white .sidebar-label,
+#app-sidebar .nav-group a.bg-white .material-symbols-outlined {
+  background-color: #ffffff !important;
+  color: var(--color-primary) !important;
+}
+
+/* Expanded Active White Module Accordion Card in Sidebar */
+#app-sidebar .nav-group.bg-white {
+  background-color: #ffffff !important;
+  color: var(--color-dark-text) !important;
+}
+
+/* Expanded Module Header Button & Icons (e.g. Login2 Settings) */
+#app-sidebar .nav-group.bg-white > button[data-toggle-module],
+#app-sidebar .nav-group.bg-white > button[data-toggle-module] .sidebar-label,
+#app-sidebar .nav-group.bg-white > button[data-toggle-module] .material-symbols-outlined {
+  color: var(--color-primary) !important;
+}
+
+/* Inactive Submenu Items inside Expanded Module (e.g. Login2 Profile, Staff Document) */
+#app-sidebar .nav-group.bg-white .nav-groups a:not(.bg-light-blue):not(.bg-white),
+#app-sidebar .nav-group.bg-white .nav-groups a:not(.bg-light-blue):not(.bg-white) .truncate {
+  color: var(--color-dark-text) !important;
+  font-weight: 500;
+}
+#app-sidebar .nav-group.bg-white .nav-groups a:not(.bg-light-blue):not(.bg-white):hover,
+#app-sidebar .nav-group.bg-white .nav-groups a:not(.bg-light-blue):not(.bg-white):hover .truncate {
+  background-color: rgba(234, 242, 247, 0.7) !important;
+  color: var(--color-dark-text) !important;
+}
+
+/* Subgroup Accordion Headers inside Expanded Module */
+#app-sidebar .nav-group.bg-white .nav-level-2 button[data-toggle-subgroup],
+#app-sidebar .nav-group.bg-white .nav-level-2 button[data-toggle-subgroup] .truncate {
+  color: var(--color-dark-text) !important;
+}
+#app-sidebar .nav-group.bg-white .nav-level-2 button[data-toggle-subgroup] .material-symbols-outlined,
+#app-sidebar .nav-group.bg-white .nav-level-2 button[data-toggle-subgroup].text-primary,
+#app-sidebar .nav-group.bg-white .nav-level-2 button[data-toggle-subgroup].text-primary .truncate {
+  color: var(--color-primary) !important;
+}
+
+/* Active Submenu Item (Light Blue Pill e.g. Document Design) */
+#app-sidebar .nav-group.bg-white .nav-groups a.bg-light-blue,
+#app-sidebar .nav-group.bg-white .nav-groups a.bg-light-blue .truncate {
+  background-color: var(--color-light-blue) !important;
+  color: var(--color-primary) !important;
+  font-weight: 700 !important;
+}
+#app-sidebar .nav-group.bg-white .nav-groups a.bg-light-blue .material-symbols-outlined {
+  color: var(--color-primary) !important;
+}
+
+/* Reset text contrast for all white/light containers throughout the app */
+.bg-white,
+.bg-light-blue,
+.bg-beige,
+.bg-surface,
+.bg-surface-container-lowest,
+.bg-surface-container-low,
+.bg-surface-container,
+.bg-surface-container-high {
+  color: var(--color-dark-text);
+}
+.bg-white .text-primary,
+.bg-light-blue .text-primary,
+.bg-beige .text-primary,
+.bg-surface .text-primary,
+.bg-surface-container-lowest .text-primary,
+.bg-surface-container-low .text-primary {
+  color: var(--color-primary) !important;
+}
+.bg-white .text-dark-text,
+.bg-light-blue .text-dark-text,
+.bg-beige .text-dark-text,
+.bg-surface .text-dark-text,
+.bg-surface-container-lowest .text-dark-text {
+  color: var(--color-dark-text) !important;
+}
+.bg-white .text-muted-text,
+.bg-light-blue .text-muted-text,
+.bg-beige .text-muted-text,
+.bg-surface .text-muted-text {
+  color: var(--color-muted-text) !important;
+}
+
+.btn-secondary {
+  background-color: var(--color-light-blue);
+  color: var(--color-dark-text);
+  border: 1px solid var(--color-border);
+  transition: background-color 0.15s ease;
+}
+.btn-secondary:hover {
+  background-color: var(--color-border);
+}
+
+.btn-accent {
+  background-color: var(--color-beige);
+  color: var(--color-dark-text);
+  transition: background-color 0.15s ease;
+}
+.btn-accent:hover {
+  background-color: #e6dfd7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CENTRALIZED PHONE NUMBER INPUT COMPONENT (intl-tel-input)
+   ════════════════════════════════════════════════════════════════════════ */
+.iti {
+  width: 100% !important;
+  display: block !important;
+  position: relative;
+}
+
+.iti__country-container {
+  border-top-left-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+}
+
+.iti__selected-country {
+  padding: 0 8px 0 12px !important;
+  background-color: transparent !important;
+  border-radius: 0.5rem 0 0 0.5rem !important;
+  transition: background-color 0.15s ease;
+}
+
+.iti__selected-country:hover {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.iti__selected-dial-code {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-dark-text) !important;
+  margin-left: 6px !important;
+}
+
+.iti input[type="tel"],
+.iti input.phone-input {
+  width: 100% !important;
+  height: 42px;
+  font-size: 14px !important;
+  line-height: 1.5;
+  color: var(--color-dark-text);
+  background-color: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  padding-right: 12px !important;
+  outline: none !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iti input[type="tel"]:focus,
+.iti input.phone-input:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(111, 143, 163, 0.2) !important;
+}
+
+.iti input[type="tel"].!border-error,
+.iti input.phone-input.!border-error,
+.iti input.is-invalid {
+  border-color: #c5221f !important;
+  box-shadow: 0 0 0 3px rgba(197, 34, 31, 0.15) !important;
+}
+
+.iti input.is-valid {
+  border-color: #1e7e34 !important;
+}
+
+.phone-feedback {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c5221f;
+  margin-top: 4px;
+}
+
+.iti__dropdown-content {
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 25px -5px rgba(36, 55, 70, 0.1), 0 8px 10px -6px rgba(36, 55, 70, 0.08) !important;
+  border: 1px solid var(--color-border) !important;
+  background-color: #ffffff !important;
+  z-index: 60 !important;
+  overflow: hidden;
+  max-width: 360px;
+}
+
+.iti__search-input {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.5rem !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  margin: 8px !important;
+  width: calc(100% - 16px) !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  color: var(--color-dark-text) !important;
+}
+
+.iti__search-input:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(111, 143, 163, 0.2) !important;
+}
+
+.iti__country-list {
+  max-height: 240px !important;
+  scrollbar-width: thin;
+}
+
+.iti__country-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.iti__country-list::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 9999px;
+}
+
+.iti__country {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.iti__country:hover,
+.iti__country.iti__highlight {
+  background-color: var(--color-light-blue) !important;
+}
+
+.iti__country.iti__preferred {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.iti__country-name {
+  color: var(--color-dark-text);
+  font-weight: 500;
+}
+
+.iti__dial-code {
+  color: var(--color-muted-text) !important;
+  font-size: 12px !important;
+}
+
+/* Flag sprite path adjustment */
+.iti__flag {
+  background-image: url("vendor/intl-tel-input/img/flags.png") !important;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .iti__flag {
+    background-image: url("vendor/intl-tel-input/img/flags@2x.png") !important;
+  }
+}
+
+/* =========================================================================
+   GLOBAL PRINT & PDF DOCUMENT STYLES
+   Strictly removes all browser application UI from printed documents / PDFs
+   ========================================================================= */
+@media print {
+  /* 1. Strictly hide all Application UI */
+  #sidebar-root,
+  #header-root,
+  header.app-header,
+  nav,
+  aside,
+  .no-print,
+  .print\:hidden,
+  .action-bar,
+  .toolbar,
+  [data-testid="btn-back-profile"],
+  [data-testid="btn-download-pdf"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+  }
+
+  /* 2. Reset Body & Page Container */
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    font-size: 10pt !important;
+    line-height: 1.35 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .flex.min-h-screen {
+    display: block !important;
+    min-height: auto !important;
+  }
+
+  .flex-1.min-w-0.flex.flex-col {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  /* 3. Document Containers bleed full width */
+  .report-card-container,
+  .receipt-sheet,
+  .tc-container,
+  #report-sheet,
+  .sheet,
+  .document-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Ensure headers and footers span 100% */
+  .document-design-header,
+  .document-design-footer {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .document-design-header img,
+  .document-design-footer img {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 !important;
+  }
+}
+
+/* =========================================================================
+   Mark Student Attendance Mobile Dedicated Card Layout
+   ========================================================================= */
+@media (max-width: 767px) {
+  .attendance-table-responsive {
+    display: block !important;
+    width: 100% !important;
+    background-color: var(--color-background, #F7F9FB) !important;
+    padding: 12px 10px !important;
+    border: none !important;
+  }
+  .attendance-table-responsive table {
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  .attendance-table-responsive thead {
+    display: none !important;
+  }
+  .attendance-table-responsive tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+  }
+  .attendance-table-responsive tr.att-student-row {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    border: 1px solid var(--color-border, #DCE4E8) !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    box-shadow: 0 1px 3px rgba(36, 55, 70, 0.05) !important;
+  }
+  .attendance-table-responsive tr.att-student-row > td {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    border: none !important;
+    white-space: normal !important;
+  }
+  .attendance-table-responsive tr.att-student-row > td.att-col-roll {
+    display: none !important;
+  }
+}

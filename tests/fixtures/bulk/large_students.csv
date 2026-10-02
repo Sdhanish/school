@@ -1,0 +1,7 @@
+admission_number,first_name,middle_name,last_name,date_of_birth,gender,blood_group,guardian_name,guardian_relation,guardian_phone,guardian_email,address,roll_number
+,Aarav,,Verma,2012-05-14,Male,B+,Rajesh Verma,Father,+91 9876543210,rajesh.verma@example.com,Kochi,101
+,Ananya,K,Nair,2013-08-20,Female,O+,Suresh Nair,Father,+91 9876543211,suresh.nair@example.com,Ernakulam,102
+,Dev,,Sharma,2012-11-03,Male,A+,Manoj Sharma,Father,+91 9876543212,manoj.sharma@example.com,Thrissur,103
+,Diya,M,Menon,2013-02-18,Female,AB+,Pradeep Menon,Father,+91 9876543213,pradeep.menon@example.com,Palakkad,104
+,Ishaan,,Gupta,2012-07-25,Male,B-,Alok Gupta,Father,+91 9876543214,alok.gupta@example.com,Kozhikode,105
+,Kavya,,Pillai,2013-09-12,Female,O-,Girish Pillai,Father,+91 9876543215,girish.pillai@example.com,Kollam,106

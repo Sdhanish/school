@@ -1,0 +1,27 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prevent directory listing
+    Options -Indexes
+
+    # Allow direct access to real files and directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Rewrite to index.php with query string append for universal FastCGI / PHP-FPM / mod_php compatibility
+    RewriteRule ^(.*)$ index.php?/$1 [L,QSA]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    ErrorDocument 404 /index.php
+</IfModule>
+
+# ------------------------------------------------------------------
+# Environment-specific BASE_URL
+# ------------------------------------------------------------------
+# On the DEV SERVER (dev.login2.in): inject BASE_URL so config.php
+# uses it instead of auto-detecting the internal IP from HTTP_HOST.
+# On localhost: this SetEnvIf does NOT match → auto-detection runs
+# normally → base_url() resolves to http://localhost/schoolnew/.
+# ------------------------------------------------------------------
+SetEnvIf Host "dev\.login2\.in" BASE_URL=http://dev.login2.in/schoolnew/
