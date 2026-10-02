@@ -38,6 +38,7 @@ class Finance extends MY_Controller {
         $this->render('pages/finance/dashboard', array(
             'title'               => 'Fee & Finance Dashboard',
             'page_key'            => 'finance_dashboard',
+            'breadcrumb'          => array('Fee & Finance', 'Dashboard'),
             'metrics'             => $metrics,
             'recent_transactions' => $metrics['recent_transactions'] ?? [],
             'cash_bank_accounts'  => $cash_bank_accounts,
@@ -54,8 +55,9 @@ class Finance extends MY_Controller {
         $groups = $this->Finance_model->get_account_groups($this->school_id);
 
         $this->render('pages/finance/account_groups', array(
-            'title'      => 'Account Groups — Chart of Accounts',
+            'title'      => 'Account Groups — College Finance',
             'page_key'   => 'finance_coa_groups',
+            'breadcrumb' => array('Fee & Finance', 'College Finance', 'Account Groups'),
             'groups'     => $groups,
             'can_create' => $this->rbac->is_super_admin() || $this->rbac->has_permission('finance.account_groups.create') || $this->rbac->has_permission('finance.coa.create'),
             'can_edit'   => $this->rbac->is_super_admin() || $this->rbac->has_permission('finance.account_groups.edit') || $this->rbac->has_permission('finance.coa.edit'),
@@ -257,8 +259,9 @@ class Finance extends MY_Controller {
         $groups = $this->Finance_model->get_account_groups($this->school_id);
 
         $this->render('pages/finance/account_heads', array(
-            'title'      => 'Account Heads — Chart of Accounts',
+            'title'      => 'Account Heads — College Finance',
             'page_key'   => 'finance_coa_heads',
+            'breadcrumb' => array('Fee & Finance', 'College Finance', 'Account Heads'),
             'heads'      => $heads,
             'groups'     => $groups,
             'can_create' => $this->rbac->is_super_admin() || $this->rbac->has_permission('finance.account_heads.create') || $this->rbac->has_permission('finance.coa.create'),
@@ -497,8 +500,9 @@ class Finance extends MY_Controller {
         $account_heads = $this->Finance_model->get_account_heads($this->school_id);
 
         $this->render('pages/finance/custom_accounts', array(
-            'title'           => 'Custom Accounts — Chart of Accounts',
-            'page_key'        => 'finance_coa_custom',
+            'title'           => 'Custom Accounts — College Finance',
+            'page_key'        => 'finance_coa_heads',
+            'breadcrumb'      => array('Fee & Finance', 'College Finance', 'Account Heads', 'Custom Accounts'),
             'custom_accounts' => $custom_accounts,
             'account_heads'   => $account_heads,
             'can_create'      => $this->rbac->is_super_admin() || $this->rbac->has_permission('finance.custom_accounts.create') || $this->rbac->has_permission('finance.coa.create'),
@@ -722,8 +726,9 @@ class Finance extends MY_Controller {
         $ledgers = $this->Finance_model->get_ledgers($this->school_id, $filters);
 
         $this->render('pages/finance/ledgers', array(
-            'title'       => 'Ledger Accounts Directory',
-            'page_key'    => 'finance-ledgers',
+            'title'       => 'General Ledger Accounts Directory',
+            'page_key'    => 'finance_ledgers_general',
+            'breadcrumb'  => array('Fee & Finance', 'Accounting & Reports', 'General Ledger'),
             'ledgers'     => $ledgers,
             'active_type' => $type,
             'search'      => $search,
@@ -750,12 +755,13 @@ class Finance extends MY_Controller {
         $student_name = $statement['student'] ? ($statement['student']->first_name . ' ' . $statement['student']->last_name) : ($student->first_name . ' ' . $student->last_name);
 
         $this->render('pages/finance/student_statement', array(
-            'title'     => 'Student Ledger - ' . $student_name,
-            'page_key'  => 'finance_ledgers_student',
-            'student'   => $statement['student'] ?? $student,
-            'statement' => $statement,
-            'from_date' => $from_date,
-            'to_date'   => $to_date,
+            'title'      => 'Student Ledger — ' . $student_name,
+            'page_key'   => 'finance_ledgers_student',
+            'breadcrumb' => array('Fee & Finance', 'Student Finance', 'Student Ledger', $student_name),
+            'student'    => $statement['student'] ?? $student,
+            'statement'  => $statement,
+            'from_date'  => $from_date,
+            'to_date'    => $to_date,
         ));
     }
 
@@ -779,12 +785,13 @@ class Finance extends MY_Controller {
         $staff_name = $statement['staff'] ? ($statement['staff']->full_name ?? ($statement['staff']->first_name . ' ' . $statement['staff']->last_name)) : ($staff->full_name ?? ($staff->first_name . ' ' . $staff->last_name));
 
         $this->render('pages/finance/staff_statement', array(
-            'title'     => 'Staff Ledger - ' . $staff_name,
-            'page_key'  => 'finance_ledgers_staff',
-            'staff'     => $statement['staff'] ?? $staff,
-            'statement' => $statement,
-            'from_date' => $from_date,
-            'to_date'   => $to_date,
+            'title'      => 'Staff Ledger — ' . $staff_name,
+            'page_key'   => 'finance_ledgers_staff',
+            'breadcrumb' => array('Fee & Finance', 'Staff Finance', 'Staff Ledger', $staff_name),
+            'staff'      => $statement['staff'] ?? $staff,
+            'statement'  => $statement,
+            'from_date'  => $from_date,
+            'to_date'    => $to_date,
         ));
     }
 
@@ -816,8 +823,9 @@ class Finance extends MY_Controller {
         }
 
         $this->render('pages/finance/ledger_students', array(
-            'title'             => 'Student Ledger Accounts',
+            'title'             => 'Student Ledger — Student Finance',
             'page_key'          => 'finance_ledgers_student',
+            'breadcrumb'        => array('Fee & Finance', 'Student Finance', 'Student Ledger'),
             'ledgers'           => $ledgers,
             'classes'           => $classes,
             'filters'           => $filters,
@@ -844,8 +852,9 @@ class Finance extends MY_Controller {
         }
 
         $this->render('pages/finance/ledger_staff', array(
-            'title'         => 'Staff Ledger Accounts',
+            'title'         => 'Staff Ledger — Staff Finance',
             'page_key'      => 'finance_ledgers_staff',
+            'breadcrumb'    => array('Fee & Finance', 'Staff Finance', 'Staff Ledger'),
             'ledgers'       => $ledgers,
             'filters'       => $filters,
             'total_count'   => $total_count,
@@ -891,8 +900,9 @@ class Finance extends MY_Controller {
         }
 
         $this->render('pages/finance/ledger_other_parties', array(
-            'title'         => 'Other Party Ledger Accounts',
-            'page_key'      => 'finance_ledgers_party',
+            'title'         => 'Vendors & Payables Ledgers — College Finance',
+            'page_key'      => 'finance_exp_vendor',
+            'breadcrumb'    => array('Fee & Finance', 'College Finance', 'Vendors & Payables', 'Other Party Ledgers'),
             'ledgers'       => $ledgers,
             'filters'       => $filters,
             'total_count'   => $total_count,
@@ -918,12 +928,13 @@ class Finance extends MY_Controller {
         $statement = $this->Finance_model->get_other_party_statement($ledger_id, $this->school_id, $from_date, $to_date);
 
         $this->render('pages/finance/other_party_statement', array(
-            'title'     => 'Vendor Ledger Statement - ' . $ledger->ledger_name,
-            'page_key'  => 'finance_ledgers_party',
-            'ledger'    => $ledger,
-            'statement' => $statement,
-            'from_date' => $from_date,
-            'to_date'   => $to_date,
+            'title'      => 'Vendor Ledger Statement — ' . $ledger->ledger_name,
+            'page_key'   => 'finance_exp_vendor',
+            'breadcrumb' => array('Fee & Finance', 'College Finance', 'Vendors & Payables', $ledger->ledger_name),
+            'ledger'     => $ledger,
+            'statement'  => $statement,
+            'from_date'  => $from_date,
+            'to_date'    => $to_date,
         ));
     }
 
@@ -946,8 +957,9 @@ class Finance extends MY_Controller {
         }
 
         $this->render('pages/finance/ledger_general', array(
-            'title'            => 'General Ledger Statement',
+            'title'            => 'General Ledger — Accounting & Reports',
             'page_key'         => 'finance_ledgers_general',
+            'breadcrumb'       => array('Fee & Finance', 'Accounting & Reports', 'General Ledger'),
             'all_accounts'     => $all_accounts,
             'account_id'       => $account_id,
             'selected_account' => $selected_account,
@@ -979,8 +991,9 @@ class Finance extends MY_Controller {
         $parent_heads = $this->Finance_model->get_accounts_by_category('Asset', $this->school_id);
 
         $this->render('pages/finance/cash_accounts', array(
-            'title'        => 'Cash Accounts Management',
+            'title'        => 'Cash Accounts — College Finance',
             'page_key'     => 'finance_cb_cash',
+            'breadcrumb'   => array('Fee & Finance', 'College Finance', 'Cash Accounts'),
             'stats'        => $stats,
             'accounts'     => $accounts,
             'parent_heads' => $parent_heads,
@@ -1007,8 +1020,9 @@ class Finance extends MY_Controller {
         $parent_heads = $this->Finance_model->get_accounts_by_category('Asset', $this->school_id);
 
         $this->render('pages/finance/bank_accounts', array(
-            'title'        => 'Bank Accounts Management',
+            'title'        => 'Bank Accounts — College Finance',
             'page_key'     => 'finance_cb_bank',
+            'breadcrumb'   => array('Fee & Finance', 'College Finance', 'Bank Accounts'),
             'stats'        => $stats,
             'accounts'     => $accounts,
             'parent_heads' => $parent_heads,
@@ -1198,8 +1212,9 @@ class Finance extends MY_Controller {
         $stats              = $this->Finance_model->get_transfers_kpi_stats($this->school_id, $this->academic_year_id);
 
         $this->render('pages/finance/transfers', array(
-            'title'              => 'Inter-Account Fund Transfers',
+            'title'              => 'Transfers — College Finance',
             'page_key'           => 'finance_cb_transfers',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Transfers'),
             'transfers'          => $transfers,
             'cash_bank_accounts' => $active_accounts,
             'all_accounts'       => $all_accounts,
@@ -1336,8 +1351,9 @@ class Finance extends MY_Controller {
                                        ->get('tbl_staff')->result();
 
         $this->render('pages/finance/expenses', array(
-            'title'              => 'Expense Entry',
+            'title'              => 'Expenses — College Finance',
             'page_key'           => 'finance_exp_entry',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Expenses'),
             'stats'              => $stats,
             'expenses'           => $expenses,
             'expense_types'      => $expense_types,
@@ -1350,7 +1366,61 @@ class Finance extends MY_Controller {
     }
 
     /**
-     * Submodule 2: Staff Payout
+     * Phase 1 Placeholder: Salary Setup (Staff Finance)
+     */
+    public function salary_setup()
+    {
+        $this->require_permission(array('finance.view'));
+
+        $this->render('pages/finance/placeholder', array(
+            'title'       => 'Salary Setup — Staff Finance',
+            'module_name' => 'Salary Setup',
+            'group_name'  => 'STAFF FINANCE',
+            'badge'       => 'NEW',
+            'description' => 'Staff salary structure, pay grades, and basic/allowance components configuration.',
+            'page_key'    => 'finance_salary_setup',
+            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Setup'),
+        ));
+    }
+
+    /**
+     * Phase 1 Placeholder: Salary Processing (Staff Finance)
+     */
+    public function salary_processing()
+    {
+        $this->require_permission(array('finance.view'));
+
+        $this->render('pages/finance/placeholder', array(
+            'title'       => 'Salary Processing — Staff Finance',
+            'module_name' => 'Salary Processing',
+            'group_name'  => 'STAFF FINANCE',
+            'badge'       => 'NEW',
+            'description' => 'Monthly staff payroll calculation, attendance deductions, and payslip generation.',
+            'page_key'    => 'finance_salary_processing',
+            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Processing'),
+        ));
+    }
+
+    /**
+     * Phase 1 Placeholder: Salary Payable (Staff Finance)
+     */
+    public function salary_payable()
+    {
+        $this->require_permission(array('finance.view'));
+
+        $this->render('pages/finance/placeholder', array(
+            'title'       => 'Salary Payable — Staff Finance',
+            'module_name' => 'Salary Payable',
+            'group_name'  => 'STAFF FINANCE',
+            'badge'       => 'NEW',
+            'description' => 'Approved salary payable liabilities, pending disbursements, and staff clearance registers.',
+            'page_key'    => 'finance_salary_payable',
+            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Payable'),
+        ));
+    }
+
+    /**
+     * Submodule 2: Staff Payout / Salary Payment
      */
     public function staff_payouts()
     {
@@ -1446,8 +1516,9 @@ class Finance extends MY_Controller {
         $expense_accounts   = $this->Finance_model->get_accounts_by_category('Expense', $this->school_id);
 
         $this->render('pages/finance/staff_payouts', array(
-            'title'              => 'Staff Payouts & Salary Management',
+            'title'              => 'Salary Payment — Staff Finance',
             'page_key'           => 'finance_exp_payout',
+            'breadcrumb'         => array('Fee & Finance', 'Staff Finance', 'Salary Payment'),
             'stats'              => $stats,
             'payouts'            => $payouts,
             'staff_members'      => $staff_members,
@@ -1548,8 +1619,9 @@ class Finance extends MY_Controller {
         $payable_accounts   = $this->Finance_model->get_accounts_by_category('Liability', $this->school_id);
 
         $this->render('pages/finance/vendor_payments', array(
-            'title'              => 'Vendor & Supplier Payments',
+            'title'              => 'Vendors & Payables — College Finance',
             'page_key'           => 'finance_exp_vendor',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Vendors & Payables'),
             'stats'              => $stats,
             'payments'           => $payments,
             'vendors'            => $vendors,
@@ -1631,8 +1703,9 @@ class Finance extends MY_Controller {
         $expense_accounts   = $this->Finance_model->get_accounts_by_category('Expense', $this->school_id);
 
         $this->render('pages/finance/other_expenses', array(
-            'title'              => 'Other & Miscellaneous Expenses',
-            'page_key'           => 'finance_exp_other',
+            'title'              => 'Other Expenses — College Finance',
+            'page_key'           => 'finance_exp_entry',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Expenses', 'Other Expenses'),
             'stats'              => $stats,
             'expenses'           => $expenses,
             'cash_bank_accounts' => $cash_bank_accounts,
@@ -1750,8 +1823,9 @@ class Finance extends MY_Controller {
         $expense_accounts = $this->Finance_model->get_accounts($this->school_id, array('group_type' => 'Expense'));
 
         $this->render('pages/finance/expense_types', array(
-            'title'            => 'Expense Categories / Types',
-            'page_key'         => 'finance-expenses',
+            'title'            => 'Expense Categories — College Finance',
+            'page_key'         => 'finance_exp_entry',
+            'breadcrumb'       => array('Fee & Finance', 'College Finance', 'Expenses', 'Categories'),
             'expense_types'    => $expense_types,
             'expense_accounts' => $expense_accounts,
         ));
@@ -1869,8 +1943,9 @@ class Finance extends MY_Controller {
         $party_ledgers      = $this->Finance_model->get_other_party_ledgers_list($this->school_id);
 
         $this->render('pages/finance/transactions_income', array(
-            'title'              => 'Income Transactions',
+            'title'              => 'Income — College Finance',
             'page_key'           => 'finance_txn_income',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Income'),
             'stats'              => $stats,
             'transactions'       => $transactions,
             'cash_bank_accounts' => $cash_bank_accounts,
@@ -1957,8 +2032,9 @@ class Finance extends MY_Controller {
         $party_ledgers      = $this->Finance_model->get_other_party_ledgers_list($this->school_id);
 
         $this->render('pages/finance/transactions_expense', array(
-            'title'              => 'Expense Transactions',
-            'page_key'           => 'finance_txn_expense',
+            'title'              => 'Expense Transactions — College Finance',
+            'page_key'           => 'finance_exp_entry',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Expenses', 'Transactions'),
             'stats'              => $stats,
             'transactions'       => $transactions,
             'cash_bank_accounts' => $cash_bank_accounts,
@@ -2028,8 +2104,9 @@ class Finance extends MY_Controller {
         $all_accounts = $this->Finance_model->get_accounts($this->school_id);
 
         $this->render('pages/finance/adjustments', array(
-            'title'        => 'Accounting Adjustments',
+            'title'        => 'Adjustments & Refunds — College Finance',
             'page_key'     => 'finance_txn_adjustment',
+            'breadcrumb'   => array('Fee & Finance', 'College Finance', 'Adjustments / Refunds'),
             'stats'        => $stats,
             'transactions' => $transactions,
             'all_accounts' => $all_accounts,
@@ -2118,8 +2195,9 @@ class Finance extends MY_Controller {
         $party_ledgers      = $this->Finance_model->get_other_party_ledgers_list($this->school_id);
 
         $this->render('pages/finance/refunds', array(
-            'title'              => 'Refund Transactions',
-            'page_key'           => 'finance_txn_refund',
+            'title'              => 'Refunds — College Finance',
+            'page_key'           => 'finance_txn_adjustment',
+            'breadcrumb'         => array('Fee & Finance', 'College Finance', 'Adjustments / Refunds', 'Refunds'),
             'stats'              => $stats,
             'transactions'       => $transactions,
             'cash_bank_accounts' => $cash_bank_accounts,
@@ -2255,8 +2333,9 @@ class Finance extends MY_Controller {
         $all_ledgers  = $this->Finance_model->get_ledgers($this->school_id);
 
         $this->render('pages/finance/journal_entries', array(
-            'title'        => 'Journal Entries (Double-Entry Engine)',
+            'title'        => 'Journal Entries — Accounting & Reports',
             'page_key'     => 'finance_txn_journal',
+            'breadcrumb'   => array('Fee & Finance', 'Accounting & Reports', 'Journal Entries'),
             'stats'        => $stats,
             'transactions' => $transactions,
             'all_accounts' => $all_accounts,
@@ -2360,8 +2439,9 @@ class Finance extends MY_Controller {
         $cash_bank_accounts = $this->Finance_model->get_cash_and_bank_accounts($this->school_id);
 
         $this->render('pages/finance/reports', array(
-            'title'              => 'Financial Reports & Accounting Statements',
-            'page_key'           => 'finance-reports',
+            'title'              => 'Financial Reports — Accounting & Reports',
+            'page_key'           => 'finance_reports',
+            'breadcrumb'         => array('Fee & Finance', 'Accounting & Reports', 'Financial Reports'),
             'report_type'        => $report_type,
             'report_data'        => $report_data,
             'as_of_date'         => $as_of_date,
@@ -2414,8 +2494,9 @@ class Finance extends MY_Controller {
         $income_accounts = $this->Finance_model->get_accounts_by_category('Income', $this->school_id);
 
         $this->render('pages/finance/fee_types', [
-            'title'           => 'Fee Types & Heads Setup',
-            'page_key'        => 'finance-fee-types',
+            'title'           => 'Fee Types — Student Finance',
+            'page_key'        => 'finance_fee_types',
+            'breadcrumb'      => ['Fee & Finance', 'Student Finance', 'Fee Types'],
             'fee_types'       => $fee_types,
             'income_accounts' => $income_accounts,
         ]);
@@ -2468,8 +2549,9 @@ class Finance extends MY_Controller {
         $classes = $this->Class_model->get_all(['school_id' => $this->school_id, 'is_deleted' => 'n']);
 
         $this->render('pages/finance/fee_structures', [
-            'title'      => 'Class Fee Structures',
-            'page_key'   => 'finance-fee-structures',
+            'title'      => 'Fee Structures — Student Finance',
+            'page_key'   => 'finance_fee_structures',
+            'breadcrumb' => ['Fee & Finance', 'Student Finance', 'Fee Structures'],
             'structures' => $structures,
             'fee_types'  => $fee_types,
             'classes'    => $classes,
@@ -2533,8 +2615,9 @@ class Finance extends MY_Controller {
         $classes = $this->Class_model->get_all(['school_id' => $this->school_id, 'is_deleted' => 'n']);
 
         $this->render('pages/finance/fee_assignments', [
-            'title'       => 'Student Fee Assignment & Invoices',
-            'page_key'    => 'finance-fee-assignments',
+            'title'       => 'Fee Assignment — Student Finance',
+            'page_key'    => 'finance_fee_assignments',
+            'breadcrumb'  => ['Fee & Finance', 'Student Finance', 'Fee Assignment'],
             'assignments' => $assignments,
             'structures'  => $structures,
             'classes'     => $classes,
@@ -2608,8 +2691,9 @@ class Finance extends MY_Controller {
         $recent_collections = $this->Finance_model->get_fee_collections($this->school_id, $this->academic_year_id);
 
         $this->render('pages/finance/fee_collection', [
-            'title'              => 'Fee Collection & Receipt Generation',
-            'page_key'           => 'finance-fee-collection',
+            'title'              => 'Fee Collection — Student Finance',
+            'page_key'           => 'finance_fee_collection',
+            'breadcrumb'         => ['Fee & Finance', 'Student Finance', 'Fee Collection'],
             'student'            => $student,
             'student_fees'       => $student_fees,
             'fee_summary'        => $fee_summary,
@@ -2619,7 +2703,7 @@ class Finance extends MY_Controller {
     }
 
     // -------------------------------------------------------------------------
-    // 14. Pending Fees
+    // 14. Pending Fees / Outstanding Dues
     // -------------------------------------------------------------------------
     public function pending_fees()
     {
@@ -2628,8 +2712,9 @@ class Finance extends MY_Controller {
         $pending_fees = $this->Finance_model->get_pending_fees($this->school_id, $this->academic_year_id);
 
         $this->render('pages/finance/pending_fees', [
-            'title'        => 'Pending & Overdue Student Fees',
-            'page_key'     => 'finance-pending-fees',
+            'title'        => 'Outstanding Dues — Student Finance',
+            'page_key'     => 'finance_fee_pending',
+            'breadcrumb'   => ['Fee & Finance', 'Student Finance', 'Outstanding Dues'],
             'pending_fees' => $pending_fees,
         ]);
     }
@@ -2644,8 +2729,9 @@ class Finance extends MY_Controller {
         $collections = $this->Finance_model->get_fee_collections($this->school_id, $this->academic_year_id);
 
         $this->render('pages/finance/fee_receipts', [
-            'title'       => 'Fee Collection Receipts',
-            'page_key'    => 'finance-fee-receipts',
+            'title'       => 'Receipts — Student Finance',
+            'page_key'    => 'finance_fee_receipts',
+            'breadcrumb'  => ['Fee & Finance', 'Student Finance', 'Receipts'],
             'collections' => $collections,
         ]);
     }

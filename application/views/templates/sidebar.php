@@ -160,7 +160,9 @@ if (!$activeModuleKey && $normActiveKey === 'dashboard') {
                 ?>
                 <a href="<?php echo site_url($group['route'] ?? $group['key']); ?>" class="flex items-center justify-between pl-7 pr-3 py-1.5 rounded-lg text-xs font-body-md transition-colors <?php echo $isItemActive ? 'bg-light-blue text-primary font-bold shadow-2xs' : 'text-dark-text/80 hover:bg-light-blue/60 hover:text-dark-text'; ?>">
                   <span class="truncate"><?php echo html_escape($group['label'] ?? ''); ?></span>
-                  <?php if (!empty($group['soon'])): ?>
+                  <?php if (!empty($group['badge_text'])): ?>
+                    <span class="ml-1.5 shrink-0 rounded-full bg-light-blue px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wide text-primary"><?php echo html_escape($group['badge_text']); ?></span>
+                  <?php elseif (!empty($group['soon'])): ?>
                     <span class="ml-1.5 shrink-0 rounded-full bg-light-blue px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wide text-primary">Soon</span>
                   <?php endif; ?>
                 </a>
@@ -188,7 +190,9 @@ if (!$activeModuleKey && $normActiveKey === 'dashboard') {
                       ?>
                       <a href="<?php echo site_url($child['route'] ?? $child['key']); ?>" class="flex items-center justify-between pl-10 pr-3 py-1.5 rounded-lg text-xs font-body-md transition-colors <?php echo $isChildActive ? 'bg-light-blue text-primary font-bold shadow-2xs' : 'text-dark-text/80 hover:bg-light-blue/60 hover:text-dark-text'; ?>">
                         <span class="truncate"><?php echo html_escape($child['label'] ?? ''); ?></span>
-                        <?php if (!empty($child['soon'])): ?>
+                        <?php if (!empty($child['badge_text'])): ?>
+                          <span class="ml-1.5 shrink-0 rounded-full bg-light-blue px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wide text-primary"><?php echo html_escape($child['badge_text']); ?></span>
+                        <?php elseif (!empty($child['soon'])): ?>
                           <span class="ml-1.5 shrink-0 rounded-full bg-light-blue px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wide text-primary">Soon</span>
                         <?php endif; ?>
                       </a>

@@ -416,7 +416,7 @@ $route['staff/view_document/(:num)']         = 'staff/view_document/$1';
 $route['staff/download_document/(:num)']     = 'staff/download_document/$1';
 $route['staff/remove_photo/(:num)']           = 'staff/remove_photo/$1';
 
-$route['unauthorized']                       = 'unauthorized/index';
+$route['unauthorized']                       =  'unauthorized/index';
 
 $route['examinations/ajax_get_divisions']          = 'examinations/ajax_get_divisions';
 $route['examinations/ajax_get_divisions/(:num)']    = 'examinations/ajax_get_divisions/$1';
@@ -506,6 +506,31 @@ $route['finance/fee_collection']                     = 'finance/fee_collection';
 $route['finance/pending_fees']                       = 'finance/pending_fees';
 $route['finance/fee_receipts']                       = 'finance/fee_receipts';
 
+// Phase 1: Staff Finance Placeholders & Target Navigation Aliases
+$route['finance/salary_setup']                       = 'finance/salary_setup';
+$route['finance/salary-setup']                       = 'finance/salary_setup';
+$route['finance/salary_processing']                  = 'finance/salary_processing';
+$route['finance/salary-processing']                  = 'finance/salary_processing';
+$route['finance/salary_payable']                     = 'finance/salary_payable';
+$route['finance/salary-payable']                     = 'finance/salary_payable';
+$route['finance/salary_payment']                     = 'finance/staff_payouts';
+$route['finance/salary-payment']                     = 'finance/staff_payouts';
+$route['finance/outstanding_dues']                   = 'finance/pending_fees';
+$route['finance/outstanding-dues']                   = 'finance/pending_fees';
+$route['finance/receipts']                           = 'finance/fee_receipts';
+$route['finance/student_ledger']                     = 'finance/ledger_students';
+$route['finance/student-ledger']                     = 'finance/ledger_students';
+$route['finance/staff_ledger']                       = 'finance/ledger_staff';
+$route['finance/staff-ledger']                       = 'finance/ledger_staff';
+$route['finance/vendors_payables']                   = 'finance/vendor_payments';
+$route['finance/vendors-payables']                   = 'finance/vendor_payments';
+$route['finance/adjustments_refunds']                = 'finance/adjustments';
+$route['finance/adjustments-refunds']                = 'finance/adjustments';
+$route['finance/general_ledger']                     = 'finance/ledger_general';
+$route['finance/general-ledger']                     = 'finance/ledger_general';
+$route['finance/financial_reports']                  = 'finance/reports';
+$route['finance/financial-reports']                  = 'finance/reports';
+
 // Compatibility aliases for Fee & Finance URLs ensuring zero 404s
 $fee_p = 'fees';
 $route[$fee_p]                                       = 'finance/dashboard';
@@ -527,3 +552,4 @@ $route[$fee_p . '/reports']                          = 'finance/reports';
 $route[$fee_p . '/reports/(:any)']                   = 'finance/reports/$1';
 $route[$fee_p . '/adjustments']                      = 'finance/adjustments';
 $route[$fee_p . '/refunds']                          = 'finance/refunds';
+

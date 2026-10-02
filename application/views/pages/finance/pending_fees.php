@@ -11,7 +11,7 @@
     <!-- Header & Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
-        <h2 class="font-headline-md text-headline-md text-on-surface">Pending & Overdue Fees</h2>
+        <h2 class="font-headline-md text-headline-md text-on-surface">Outstanding Dues</h2>
         <p class="text-body-md font-body-md text-on-surface-variant mt-1">Real-time outstanding receivables and aging dues across all active student accounts.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap shrink-0">

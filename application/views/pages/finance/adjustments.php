@@ -21,13 +21,16 @@
           <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-tertiary-container text-on-tertiary-container uppercase tracking-wider">Audit & Corrections</span>
           <span class="text-body-sm text-on-surface-variant font-medium"><?php echo html_escape($current_academic_year->academic_year_name ?? 'Active Session'); ?></span>
         </div>
-        <h2 class="font-headline-md text-headline-md text-on-surface mt-1">Accounting Adjustments</h2>
+        <h2 class="font-headline-md text-headline-md text-on-surface mt-1">Adjustments & Refunds</h2>
         <p class="text-body-md font-body-md text-on-surface-variant mt-0.5">Post corrective debit/credit adjustments, write-offs, depreciation, and ledger rectifications with mandatory justification.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap shrink-0">
         <button onclick="openAdjustmentModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-tertiary text-on-tertiary text-label-md font-semibold hover:bg-tertiary/90 transition-colors shadow-sm cursor-pointer">
           <span class="material-symbols-outlined text-[18px]">tune</span>Post Adjustment
         </button>
+        <a href="<?php echo site_url('finance/refunds'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-[18px]">assignment_return</span>Refunds
+        </a>
         <a href="<?php echo site_url('finance/journal_entries'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
           <span class="material-symbols-outlined text-[18px]">post_add</span>Journal Entries
         </a>

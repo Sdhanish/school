@@ -21,7 +21,7 @@
           <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-secondary-container text-on-secondary-container uppercase tracking-wider">Suppliers & Creditors</span>
           <span class="text-body-sm text-on-surface-variant font-medium"><?php echo html_escape($current_academic_year->academic_year_name ?? 'Active Session'); ?></span>
         </div>
-        <h2 class="font-headline-md text-headline-md text-on-surface mt-1">Vendor Payment</h2>
+        <h2 class="font-headline-md text-headline-md text-on-surface mt-1">Vendors & Payables</h2>
         <p class="text-body-md font-body-md text-on-surface-variant mt-0.5">Disburse payments to vendors, suppliers, contractors, and service providers with automatic creditor ledger tracking.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap shrink-0">

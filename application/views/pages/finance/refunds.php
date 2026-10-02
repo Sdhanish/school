@@ -28,6 +28,9 @@
         <button onclick="openRefundModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-error text-white text-label-md font-semibold hover:bg-error/90 transition-colors shadow-sm cursor-pointer">
           <span class="material-symbols-outlined text-[18px]">currency_exchange</span>Process Refund
         </button>
+        <a href="<?php echo site_url('finance/adjustments'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-[18px]">tune</span>Adjustments
+        </a>
         <a href="<?php echo site_url('finance/ledger_students'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
           <span class="material-symbols-outlined text-[18px]">school</span>Student Ledgers
         </a>
