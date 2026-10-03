@@ -505,6 +505,20 @@ $route['finance/fee_assignments']                    = 'finance/fee_assignments'
 $route['finance/fee_collection']                     = 'finance/fee_collection';
 $route['finance/pending_fees']                       = 'finance/pending_fees';
 $route['finance/fee_receipts']                       = 'finance/fee_receipts';
+$route['finance/view_invoice_ajax/(:num)']            = 'finance/view_invoice_ajax/$1';
+$route['finance/get_class_students_ajax/(:num)']      = 'finance/get_class_students_ajax/$1';
+$route['finance/invoice_print/(:num)']                = 'finance/invoice_print/$1';
+$route['finance/student_invoice/(:num)']              = 'finance/student_invoice/$1';
+$route['finance/student-invoice/(:num)']              = 'finance/student_invoice/$1';
+$route['finance/invoice/(:num)']                      = 'finance/student_invoice/$1';
+$route['finance/student_receipt/(:num)']              = 'finance/student_receipt/$1';
+$route['finance/student-receipt/(:num)']              = 'finance/student_receipt/$1';
+$route['finance/receipt/(:num)']                      = 'finance/student_receipt/$1';
+$route['finance/fee_receipt/(:num)']                  = 'finance/student_receipt/$1';
+$route['finance/receipt_print/(:num)']                = 'finance/receipt_print/$1';
+$route['finance/view_receipt_ajax/(:num)']            = 'finance/view_receipt_ajax/$1';
+$route['fees/receipt/(:num)']                         = 'finance/student_receipt/$1';
+$route['fees/receipt_print/(:num)']                   = 'finance/receipt_print/$1';
 
 // Phase 1: Staff Finance Placeholders & Target Navigation Aliases
 $route['finance/salary_setup']                       = 'finance/salary_setup';

@@ -43,7 +43,12 @@
             <?php if (!empty($collections)): ?>
               <?php foreach ($collections as $c): ?>
                 <tr class="hover:bg-surface-container-low/30 transition-colors">
-                  <td class="px-4 py-3 font-mono font-bold text-primary"><?php echo html_escape($c->receipt_number); ?></td>
+                  <td class="px-4 py-3 font-mono font-bold text-primary whitespace-nowrap">
+                    <a href="<?php echo site_url('finance/student_receipt/' . $c->id); ?>" class="hover:underline flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[16px]">receipt</span>
+                      <?php echo html_escape($c->receipt_number); ?>
+                    </a>
+                  </td>
                   <td class="px-4 py-3">
                     <div class="font-semibold text-on-surface"><?php echo html_escape($c->first_name . ' ' . $c->last_name); ?></div>
                     <div class="text-xs font-mono text-on-surface-variant"><?php echo html_escape($c->admission_no); ?></div>
@@ -62,9 +67,20 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <a href="<?php echo site_url('finance/student_statement/' . $c->student_id); ?>" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high text-primary hover:bg-primary hover:text-white transition-colors text-xs font-semibold" title="View Statement">
-                      <span class="material-symbols-outlined text-[15px]">visibility</span>Statement
-                    </a>
+                    <div class="flex items-center justify-end gap-1">
+                      <!-- View Receipt -->
+                      <a href="<?php echo site_url('finance/student_receipt/' . $c->id); ?>" class="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors inline-block" title="View Full Receipt">
+                        <span class="material-symbols-outlined text-[18px]">receipt</span>
+                      </a>
+                      <!-- Print Receipt -->
+                      <a href="<?php echo site_url('finance/receipt_print/' . $c->id); ?>" target="_blank" class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors inline-block" title="Print Receipt">
+                        <span class="material-symbols-outlined text-[18px]">print</span>
+                      </a>
+                      <!-- Student Statement -->
+                      <a href="<?php echo site_url('finance/student_statement/' . $c->student_id); ?>" class="p-1.5 rounded-lg text-secondary hover:bg-secondary/10 transition-colors inline-block" title="Student Statement / Ledger">
+                        <span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+                      </a>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>

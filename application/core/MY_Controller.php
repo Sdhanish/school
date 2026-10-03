@@ -580,6 +580,8 @@ class MY_Controller extends CI_Controller {
                 case 'pending_fees':
                     return 'finance_fee_pending';
                 case 'fee_receipts':
+                case 'student_receipt':
+                case 'receipt':
                     return 'finance_fee_receipts';
                 // Expenses
                 case 'expenses':

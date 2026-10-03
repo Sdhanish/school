@@ -71,7 +71,7 @@
                     <?php endif; ?>
                   </td>
                   <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <a href="<?php echo site_url('finance/fee_collection?student_id=' . $pf->student_id); ?>" class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-secondary text-on-secondary text-xs font-semibold hover:bg-secondary/90 transition-colors shadow-2xs">
+                    <a href="<?php echo site_url('finance/fee_collection?student_id=' . $pf->student_id . '&assignment_id=' . $pf->id); ?>" class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-secondary text-on-secondary text-xs font-semibold hover:bg-secondary/90 transition-colors shadow-2xs">
                       <span class="material-symbols-outlined text-[14px]">add_card</span>Pay
                     </a>
                   </td>

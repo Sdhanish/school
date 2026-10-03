@@ -2480,8 +2480,12 @@ class Finance extends MY_Controller {
                 'status'      => $this->input->post('status') ? 1 : 0,
             ];
 
-            if (empty($data['type_name']) || empty($data['type_code']) || $data['account_id'] <= 0) {
-                $this->session->set_flashdata('error', 'Please fill in Name, Code, and select an Income Account Head.');
+            // Verify account belongs strictly to an Income category
+            $income_accounts = $this->Finance_model->get_accounts_by_category('Income', $this->school_id);
+            $valid_account_ids = array_map(function($acc) { return (int)$acc->id; }, $income_accounts);
+
+            if (empty($data['type_name']) || empty($data['type_code']) || $data['account_id'] <= 0 || !in_array($data['account_id'], $valid_account_ids)) {
+                $this->session->set_flashdata('error', 'Please fill in Name, Code, and select a valid Income Account Head (Income category).');
             } else {
                 $this->Finance_model->save_fee_type($data, $this->school_id);
                 $this->session->set_flashdata('success', 'Fee type saved successfully.');
@@ -2521,6 +2525,7 @@ class Finance extends MY_Controller {
                 return;
             }
 
+            // Note: Payment Due Date must NOT exist in Fee Structure (belongs only to Fee Assignment)
             $data = [
                 'id'               => $this->input->post('id'),
                 'academic_year_id' => $this->academic_year_id,
@@ -2529,7 +2534,7 @@ class Finance extends MY_Controller {
                 'structure_name'   => trim($this->input->post('structure_name')),
                 'amount'           => (float)$this->input->post('amount'),
                 'frequency'        => $this->input->post('frequency') ?: 'Annual',
-                'due_date'         => $this->input->post('due_date') ?: null,
+                'due_date'         => null,
                 'status'           => $this->input->post('status') ? 1 : 0,
             ];
 
@@ -2566,26 +2571,40 @@ class Finance extends MY_Controller {
         $this->require_permission('finance.fees.assign');
 
         if ($this->input->method() === 'post') {
+            $assignment_mode  = $this->input->post('assignment_mode') ?: 'bulk';
             $fee_structure_id = (int)$this->input->post('fee_structure_id');
-            $class_id         = (int)$this->input->post('class_id');
-            $division_id      = (int)$this->input->post('division_id');
-            $due_date         = $this->input->post('due_date');
-            $selected_students = $this->input->post('student_ids');
+            $due_date         = trim($this->input->post('due_date'));
+            if (empty($due_date)) {
+                $due_date = date('Y-m-d', strtotime('+30 days'));
+            }
 
             $student_ids = [];
-            if (!empty($selected_students) && is_array($selected_students)) {
-                $student_ids = array_map('intval', $selected_students);
-            } elseif ($class_id > 0) {
-                // Fetch all students in this class/division
-                $this->db->select('student_id')
-                         ->where('school_id', $this->school_id)
-                         ->where('class_id', $class_id)
-                         ->where('is_deleted', 'n');
-                if ($division_id > 0) {
-                    $this->db->where('division_id', $division_id);
+
+            if ($assignment_mode === 'individual') {
+                $student_id = (int)$this->input->post('student_id');
+                if ($student_id > 0) {
+                    $student_ids = [$student_id];
                 }
-                $rows = $this->db->get('tbl_students')->result();
-                $student_ids = array_column($rows, 'student_id');
+            } else {
+                // Bulk Assignment mode
+                $class_id         = (int)$this->input->post('class_id');
+                $division_id      = (int)$this->input->post('division_id');
+                $selected_students = $this->input->post('student_ids');
+
+                if (!empty($selected_students) && is_array($selected_students)) {
+                    $student_ids = array_map('intval', $selected_students);
+                } elseif ($class_id > 0) {
+                    // Fetch all active students in target class/division
+                    $this->db->select('student_id')
+                             ->where('school_id', $this->school_id)
+                             ->where('class_id', $class_id)
+                             ->where('is_deleted', 'n');
+                    if ($division_id > 0) {
+                        $this->db->where('division_id', $division_id);
+                    }
+                    $rows = $this->db->get('tbl_students')->result();
+                    $student_ids = array_column($rows, 'student_id');
+                }
             }
 
             if (empty($student_ids) || $fee_structure_id <= 0) {
@@ -2624,6 +2643,215 @@ class Finance extends MY_Controller {
         ]);
     }
 
+    /**
+     * AJAX endpoint to fetch students by class for Individual Assignment
+     */
+    public function get_class_students_ajax($class_id = 0)
+    {
+        $this->require_permission('finance.fees.assign');
+        $class_id = (int)$class_id;
+
+        $students = $this->db->select('s.student_id, s.admission_number, s.first_name, s.last_name, s.roll_number, d.division_name')
+                             ->from('tbl_students s')
+                             ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                             ->where('s.school_id', $this->school_id)
+                             ->where('s.class_id', $class_id)
+                             ->where('s.is_deleted', 'n')
+                             ->order_by('s.first_name ASC, s.last_name ASC')
+                             ->get()->result();
+
+        return $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode([
+                        'success'  => true,
+                        'students' => $students
+                    ]));
+    }
+
+    /**
+     * AJAX endpoint to view invoice details, student receivable, and payment trail
+     */
+    public function view_invoice_ajax($assignment_id = 0)
+    {
+        $this->require_permission('finance.fees.view');
+        $assignment_id = (int)$assignment_id;
+
+        $inv = $this->db->select('fa.*, s.first_name, s.last_name, s.admission_number, s.student_phone, s.student_email, c.class_name, d.division_name, fs.structure_name, fs.frequency, ft.type_name, ft.type_code, a.account_name as revenue_account_name, a.account_code as revenue_account_code, t.transaction_number')
+                        ->from('tbl_finance_fee_assignments fa')
+                        ->join('tbl_students s', 's.student_id = fa.student_id', 'inner')
+                        ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                        ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                        ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
+                        ->join('tbl_finance_fee_types ft', 'ft.id = fs.fee_type_id', 'left')
+                        ->join('tbl_finance_accounts a', 'a.id = ft.account_id', 'left')
+                        ->join('tbl_finance_transactions t', 't.id = fa.transaction_id', 'left')
+                        ->where('fa.id', $assignment_id)
+                        ->where('fa.school_id', $this->school_id)
+                        ->where('fa.is_deleted', 'n')
+                        ->get()->row();
+
+        if (!$inv) {
+            return $this->output
+                        ->set_content_type('application/json')
+                        ->set_output(json_encode(['success' => false, 'message' => 'Invoice not found.']));
+        }
+
+        // Fetch linked collections (receipts)
+        $collections = $this->db->select('receipt_number, receipt_date, amount, payment_mode, reference_number, status')
+                                ->where('fee_assignment_id', $assignment_id)
+                                ->where('school_id', $this->school_id)
+                                ->where('is_deleted', 'n')
+                                ->order_by('id DESC')
+                                ->get('tbl_finance_fee_collections')->result();
+
+        // Calculate student net receivable balance from ledger
+        $ledger_balance = 0.00;
+        if (!empty($inv->ledger_id)) {
+            $bal_row = $this->db->query("
+                SELECT COALESCE(SUM(debit - credit), 0) as balance 
+                FROM tbl_finance_transaction_items 
+                WHERE ledger_id = ? AND school_id = ?
+            ", [$inv->ledger_id, $this->school_id])->row();
+            if ($bal_row) {
+                $ledger_balance = (float)$bal_row->balance;
+            }
+        }
+
+        return $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode([
+                        'success'        => true,
+                        'invoice'        => $inv,
+                        'collections'    => $collections,
+                        'ledger_balance' => $ledger_balance
+                    ]));
+    }
+
+    /**
+     * Dedicated Student Invoice View
+     */
+    public function student_invoice($assignment_id = 0)
+    {
+        $this->require_permission('finance.fees.view');
+        $assignment_id = (int)$assignment_id;
+
+        $invoice = $this->db->select('fa.*, s.first_name, s.last_name, s.admission_number, s.student_phone, s.student_email, s.gender, c.class_name, d.division_name, fs.structure_name, fs.frequency, ft.type_name, ft.type_code, a.account_name as revenue_account_name, a.account_code as revenue_account_code, t.transaction_number, t.created_at as posted_at')
+                            ->from('tbl_finance_fee_assignments fa')
+                            ->join('tbl_students s', 's.student_id = fa.student_id', 'inner')
+                            ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                            ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                            ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
+                            ->join('tbl_finance_fee_types ft', 'ft.id = fs.fee_type_id', 'left')
+                            ->join('tbl_finance_accounts a', 'a.id = ft.account_id', 'left')
+                            ->join('tbl_finance_transactions t', 't.id = fa.transaction_id', 'left')
+                            ->where('fa.id', $assignment_id)
+                            ->where('fa.school_id', $this->school_id)
+                            ->where('fa.is_deleted', 'n')
+                            ->get()->row();
+
+        if (!$invoice) {
+            $this->session->set_flashdata('error', 'Invoice #' . $assignment_id . ' not found or does not belong to this school.');
+            redirect('finance/fee_assignments');
+            return;
+        }
+
+        // Fetch school details
+        $this->load->model('School_model');
+        $school = $this->School_model->get_by_id($this->school_id);
+
+        // Fetch receipts collected for this invoice
+        $collections = $this->db->select('id, receipt_number, receipt_date, amount, payment_mode, reference_number, status, created_at')
+                                ->where('fee_assignment_id', $assignment_id)
+                                ->where('school_id', $this->school_id)
+                                ->where('is_deleted', 'n')
+                                ->order_by('id DESC')
+                                ->get('tbl_finance_fee_collections')->result();
+
+        // Calculate student net receivable balance from ledger
+        $ledger_balance = 0.00;
+        if (!empty($invoice->ledger_id)) {
+            $bal_row = $this->db->query("
+                SELECT COALESCE(SUM(debit - credit), 0) as balance 
+                FROM tbl_finance_transaction_items 
+                WHERE ledger_id = ? AND school_id = ?
+            ", [$invoice->ledger_id, $this->school_id])->row();
+            if ($bal_row) {
+                $ledger_balance = (float)$bal_row->balance;
+            }
+        }
+
+        $student_name = $invoice->first_name . ' ' . $invoice->last_name;
+
+        $this->render('pages/finance/student_invoice', [
+            'title'          => 'Student Fee Invoice — ' . $invoice->invoice_number,
+            'page_key'       => 'finance_fee_assignments',
+            'breadcrumb'     => ['Fee & Finance', 'Student Finance', 'Fee Assignments', $invoice->invoice_number],
+            'invoice'        => $invoice,
+            'school'         => $school,
+            'collections'    => $collections,
+            'ledger_balance' => $ledger_balance,
+        ]);
+    }
+
+    /**
+     * Printable student invoice view
+     */
+    public function invoice_print($assignment_id = 0)
+    {
+        $this->require_permission('finance.fees.view');
+        $assignment_id = (int)$assignment_id;
+
+        $inv = $this->db->select('fa.*, s.first_name, s.last_name, s.admission_number, s.student_phone, s.student_email, c.class_name, d.division_name, fs.structure_name, fs.frequency, ft.type_name, ft.type_code, a.account_name as revenue_account_name, a.account_code as revenue_account_code, t.transaction_number')
+                        ->from('tbl_finance_fee_assignments fa')
+                        ->join('tbl_students s', 's.student_id = fa.student_id', 'inner')
+                        ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                        ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                        ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
+                        ->join('tbl_finance_fee_types ft', 'ft.id = fs.fee_type_id', 'left')
+                        ->join('tbl_finance_accounts a', 'a.id = ft.account_id', 'left')
+                        ->join('tbl_finance_transactions t', 't.id = fa.transaction_id', 'left')
+                        ->where('fa.id', $assignment_id)
+                        ->where('fa.school_id', $this->school_id)
+                        ->where('fa.is_deleted', 'n')
+                        ->get()->row();
+
+        if (!$inv) {
+            show_404();
+            return;
+        }
+
+        $this->load->model('School_model');
+        $school = $this->School_model->get_by_id($this->school_id);
+
+        $collections = $this->db->select('id, receipt_number, receipt_date, amount, payment_mode, reference_number, status')
+                                ->where('fee_assignment_id', $assignment_id)
+                                ->where('school_id', $this->school_id)
+                                ->where('is_deleted', 'n')
+                                ->order_by('id DESC')
+                                ->get('tbl_finance_fee_collections')->result();
+
+        $ledger_balance = 0.00;
+        if (!empty($inv->ledger_id)) {
+            $bal_row = $this->db->query("
+                SELECT COALESCE(SUM(debit - credit), 0) as balance 
+                FROM tbl_finance_transaction_items 
+                WHERE ledger_id = ? AND school_id = ?
+            ", [$inv->ledger_id, $this->school_id])->row();
+            if ($bal_row) {
+                $ledger_balance = (float)$bal_row->balance;
+            }
+        }
+
+        $this->load->view('pages/finance/invoice_print', [
+            'invoice'        => $inv,
+            'school'         => $school,
+            'collections'    => $collections,
+            'ledger_balance' => $ledger_balance
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // 13. Fee Collection
     // -------------------------------------------------------------------------
     // 13. Fee Collection
     // -------------------------------------------------------------------------
@@ -2647,14 +2875,30 @@ class Finance extends MY_Controller {
             $res = $this->Finance_model->collect_fee_payment($payment_data, $this->school_id, $this->user_id);
             if ($res['success']) {
                 $this->session->set_flashdata('success', "Payment of ₹" . number_format($payment_data['amount'], 2) . " recorded successfully. Receipt #: " . $res['receipt_number']);
+                redirect('finance/student_receipt/' . $res['receipt_id']);
+                return;
             } else {
                 $this->session->set_flashdata('error', $res['message']);
+                redirect('finance/fee_collection' . ($payment_data['student_id'] ? '?student_id=' . $payment_data['student_id'] : ''));
+                return;
             }
-            redirect('finance/fee_receipts');
-            return;
         }
 
         $student_id = (int)$this->input->get('student_id');
+        $assignment_id = (int)$this->input->get('assignment_id');
+
+        // If assignment_id is passed but student_id not specified, find student from assignment
+        if ($assignment_id > 0 && $student_id <= 0) {
+            $fa_record = $this->db->select('student_id')
+                                  ->where('id', $assignment_id)
+                                  ->where('school_id', $this->school_id)
+                                  ->where('is_deleted', 'n')
+                                  ->get('tbl_finance_fee_assignments')->row();
+            if ($fa_record) {
+                $student_id = (int)$fa_record->student_id;
+            }
+        }
+
         $student = null;
         $student_fees = [];
         $fee_summary = [
@@ -2679,7 +2923,7 @@ class Finance extends MY_Controller {
                         $fee_summary['total_applicable'] += (float)$fa->net_amount;
                         $fee_summary['total_paid']       += (float)$fa->paid_amount;
                         $fee_summary['total_due']        += (float)$fa->due_amount;
-                        if ($fa->status === 'Pending' || (float)$fa->due_amount > 0) {
+                        if ($fa->status === 'Pending' || (float)$fa->due_amount > 0 || (int)$fa->id === $assignment_id) {
                             $student_fees[] = $fa;
                         }
                     }
@@ -2687,18 +2931,31 @@ class Finance extends MY_Controller {
             }
         }
 
-        $cash_bank_accounts = $this->Finance_model->get_cash_and_bank_accounts($this->school_id);
+        $cash_bank_accounts = $this->Finance_model->get_cash_and_bank_accounts($this->school_id, 1);
+        $cash_accounts = [];
+        $bank_accounts = [];
+        foreach ($cash_bank_accounts as $cba) {
+            if ($cba->account_type === 'Cash') {
+                $cash_accounts[] = $cba;
+            } else {
+                $bank_accounts[] = $cba;
+            }
+        }
+
         $recent_collections = $this->Finance_model->get_fee_collections($this->school_id, $this->academic_year_id);
 
         $this->render('pages/finance/fee_collection', [
-            'title'              => 'Fee Collection — Student Finance',
-            'page_key'           => 'finance_fee_collection',
-            'breadcrumb'         => ['Fee & Finance', 'Student Finance', 'Fee Collection'],
-            'student'            => $student,
-            'student_fees'       => $student_fees,
-            'fee_summary'        => $fee_summary,
-            'cash_bank_accounts' => $cash_bank_accounts,
-            'recent_collections' => array_slice($recent_collections, 0, 10),
+            'title'                  => 'Fee Collection — Student Finance',
+            'page_key'               => 'finance_fee_collection',
+            'breadcrumb'             => ['Fee & Finance', 'Student Finance', 'Fee Collection'],
+            'student'                => $student,
+            'student_fees'           => $student_fees,
+            'fee_summary'            => $fee_summary,
+            'cash_bank_accounts'     => $cash_bank_accounts,
+            'cash_accounts'          => $cash_accounts,
+            'bank_accounts'          => $bank_accounts,
+            'selected_assignment_id' => $assignment_id,
+            'recent_collections'     => array_slice($recent_collections, 0, 10),
         ]);
     }
 
@@ -2734,5 +2991,82 @@ class Finance extends MY_Controller {
             'breadcrumb'  => ['Fee & Finance', 'Student Finance', 'Receipts'],
             'collections' => $collections,
         ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // 16. Student Receipt (Dedicated View UI)
+    // -------------------------------------------------------------------------
+    public function student_receipt($receipt_id)
+    {
+        $this->require_permission('finance.fees.view');
+        $receipt_id = (int)$receipt_id;
+
+        $receipt = $this->Finance_model->get_fee_receipt($receipt_id, $this->school_id);
+        if (!$receipt) {
+            $this->session->set_flashdata('error', 'Receipt #' . $receipt_id . ' was not found or does not belong to the active school.');
+            redirect('finance/fee_receipts');
+            return;
+        }
+
+        $this->load->model('School_model');
+        $school = $this->School_model->get_by_id($this->school_id);
+
+        $this->render('pages/finance/student_receipt', [
+            'title'      => 'Receipt ' . $receipt->receipt_number . ' — Student Finance',
+            'page_key'   => 'finance_fee_receipts',
+            'breadcrumb' => ['Fee & Finance', 'Student Finance', 'Receipts', $receipt->receipt_number],
+            'receipt'    => $receipt,
+            'school'     => $school,
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // 17. Receipt Print (Standalone Printable View)
+    // -------------------------------------------------------------------------
+    public function receipt_print($receipt_id)
+    {
+        $this->require_permission('finance.fees.view');
+        $receipt_id = (int)$receipt_id;
+
+        $receipt = $this->Finance_model->get_fee_receipt($receipt_id, $this->school_id);
+        if (!$receipt) {
+            show_404();
+            return;
+        }
+
+        $this->load->model('School_model');
+        $school = $this->School_model->get_by_id($this->school_id);
+
+        $this->load->view('pages/finance/receipt_print', [
+            'receipt' => $receipt,
+            'school'  => $school,
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // 18. Quick Receipt AJAX Preview
+    // -------------------------------------------------------------------------
+    public function view_receipt_ajax($receipt_id)
+    {
+        $this->require_permission('finance.fees.view');
+        $receipt_id = (int)$receipt_id;
+
+        $receipt = $this->Finance_model->get_fee_receipt($receipt_id, $this->school_id);
+        if (!$receipt) {
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Receipt not found.']));
+        }
+
+        $this->load->model('School_model');
+        $school = $this->School_model->get_by_id($this->school_id);
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'success' => true,
+                'receipt' => $receipt,
+                'school'  => $school,
+            ]));
     }
 }

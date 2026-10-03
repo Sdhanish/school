@@ -4215,6 +4215,7 @@ class Finance_model extends CI_Model {
         $id = isset($data['id']) ? (int)$data['id'] : 0;
         unset($data['id']);
         $data['school_id'] = $school_id;
+        $data['due_date']  = null; // Payment Due Date belongs strictly to Student Fee Assignment, never Fee Structure.
 
         if ($id > 0) {
             $data['updated_at'] = date('Y-m-d H:i:s');
@@ -4271,6 +4272,22 @@ class Finance_model extends CI_Model {
 
         $type = $this->get_fee_type_by_id($struct->fee_type_id, $school_id);
         $income_account_id = $type ? (int)$type->account_id : 0;
+
+        // Verify account is an active Income account
+        if ($income_account_id > 0) {
+            $check_income = $this->db->select('a.id')
+                                     ->from('tbl_finance_accounts a')
+                                     ->join('tbl_finance_account_groups ag', 'ag.id = a.account_group_id', 'inner')
+                                     ->where('a.id', $income_account_id)
+                                     ->where('a.school_id', $school_id)
+                                     ->where('ag.category', 'Income')
+                                     ->where('a.is_deleted', 'n')
+                                     ->get()->row();
+            if (!$check_income) {
+                $income_account_id = 0;
+            }
+        }
+
         if ($income_account_id <= 0) {
             $def_inc = $this->get_account_by_code('4010', $school_id);
             $income_account_id = $def_inc ? (int)$def_inc->id : 0;
@@ -4294,7 +4311,8 @@ class Finance_model extends CI_Model {
                 $invoice_no = 'INV-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
                 $amount = (float)$struct->amount;
 
-                // 1. Insert Fee Assignment
+                // 1. Insert Fee Assignment (Invoice)
+                // Note: Due Date belongs only to Student Fee Assignment, never Fee Structure.
                 $assign_data = [
                     'school_id'        => $school_id,
                     'academic_year_id' => $academic_year_id,
@@ -4303,7 +4321,7 @@ class Finance_model extends CI_Model {
                     'ledger_id'        => $ledger_id,
                     'invoice_number'   => $invoice_no,
                     'invoice_date'     => date('Y-m-d'),
-                    'due_date'         => $due_date ?: ($struct->due_date ?: date('Y-m-d', strtotime('+30 days'))),
+                    'due_date'         => !empty($due_date) ? $due_date : date('Y-m-d', strtotime('+30 days')),
                     'assigned_amount'  => $amount,
                     'discount_amount'  => 0.00,
                     'net_amount'       => $amount,
@@ -4406,6 +4424,51 @@ class Finance_model extends CI_Model {
         return $this->db->order_by('fc.id', 'DESC')->get()->result();
     }
 
+    public function get_fee_receipt($receipt_id, $school_id)
+    {
+        $school_id = (int)$school_id;
+        $receipt_id = (int)$receipt_id;
+
+        $this->db->select('fc.*, 
+                           s.first_name, s.last_name, s.admission_number, s.admission_number as admission_no, s.student_phone, s.student_email, s.guardian_name as parent_guardian_name, s.guardian_phone, s.guardian_email, s.address as student_address,
+                           c.class_name, d.division_name,
+                           da.account_name as deposit_account_name, da.account_code as deposit_account_code, da.account_type as deposit_account_type, da.bank_name as deposit_bank_name, da.account_number as deposit_account_number, da.ifsc_code as deposit_ifsc, da.branch as deposit_branch,
+                           fa.invoice_number, fa.due_date as invoice_due_date, fa.net_amount as invoice_net_amount, fa.paid_amount as invoice_paid_amount, fa.due_amount as invoice_due_amount, fa.status as invoice_status,
+                           ft.type_name as fee_name, ft.type_code as fee_code,
+                           fs.structure_name, fs.frequency,
+                           t.transaction_number, t.status as transaction_status')
+                 ->from('tbl_finance_fee_collections fc')
+                 ->join('tbl_students s', 's.student_id = fc.student_id', 'left')
+                 ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                 ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                 ->join('tbl_finance_accounts da', 'da.id = fc.deposit_account_id', 'left')
+                 ->join('tbl_finance_fee_assignments fa', 'fa.id = fc.fee_assignment_id', 'left')
+                 ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
+                 ->join('tbl_finance_fee_types ft', 'ft.id = fs.fee_type_id', 'left')
+                 ->join('tbl_finance_transactions t', 't.id = fc.transaction_id', 'left')
+                 ->where('fc.id', $receipt_id)
+                 ->where('fc.school_id', $school_id)
+                 ->where('fc.is_deleted', 'n');
+
+        $receipt = $this->db->get()->row();
+        if (!$receipt) {
+            return null;
+        }
+
+        if (!empty($receipt->ledger_id)) {
+            $bal_row = $this->db->query("
+                SELECT COALESCE(SUM(debit - credit), 0) as balance 
+                FROM tbl_finance_transaction_items 
+                WHERE ledger_id = ? AND school_id = ?
+            ", [$receipt->ledger_id, $school_id])->row();
+            $receipt->student_current_balance = $bal_row ? (float)$bal_row->balance : 0.00;
+        } else {
+            $receipt->student_current_balance = 0.00;
+        }
+
+        return $receipt;
+    }
+
     public function collect_fee_payment($payment_data, $school_id, $created_by = null)
     {
         $school_id = (int)$school_id;
@@ -4418,6 +4481,15 @@ class Finance_model extends CI_Model {
 
         if ($amount <= 0 || $student_id <= 0 || $deposit_account_id <= 0) {
             return ['success' => false, 'message' => 'Invalid payment data provided.'];
+        }
+
+        $deposit_acc = $this->db->select('id, account_type, account_name, account_code')
+                                ->where('id', $deposit_account_id)
+                                ->where('school_id', $school_id)
+                                ->where('is_deleted', 'n')
+                                ->get('tbl_finance_accounts')->row();
+        if (!$deposit_acc || !in_array($deposit_acc->account_type, ['Cash', 'Bank'])) {
+            return ['success' => false, 'message' => 'Selected deposit account is invalid or not an active Cash/Bank account.'];
         }
 
         $receivable_acc = $this->get_account_by_code('1030', $school_id);

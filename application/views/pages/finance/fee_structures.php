@@ -18,7 +18,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
         <h2 class="font-headline-md text-headline-md text-on-surface">Class Fee Structures</h2>
-        <p class="text-body-md font-body-md text-on-surface-variant mt-1">Define standard fee amounts, payment frequencies, and default due dates for specific classes.</p>
+        <p class="text-body-md font-body-md text-on-surface-variant mt-1">Define standard fee amounts and payment frequencies for specific classes. Payment due dates are set during Student Fee Assignment.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap shrink-0">
         <button onclick="openStructureModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-primary/90 transition-colors shadow-sm cursor-pointer">
@@ -41,7 +41,6 @@
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Fee Head</th>
               <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Amount (₹)</th>
               <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Frequency</th>
-              <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Default Due Date</th>
               <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Status</th>
               <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Actions</th>
             </tr>
@@ -57,7 +56,6 @@
                   <td class="px-4 py-3 text-center">
                     <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-container-high text-on-surface"><?php echo html_escape($st->frequency); ?></span>
                   </td>
-                  <td class="px-4 py-3 text-center font-mono text-sm"><?php echo $st->due_date ? date('d M Y', strtotime($st->due_date)) : '—'; ?></td>
                   <td class="px-4 py-3 text-center whitespace-nowrap">
                     <?php if ($st->status): ?>
                       <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-secondary-container text-on-secondary-container">
@@ -83,7 +81,7 @@
               <?php endforeach; ?>
             <?php else: ?>
               <tr>
-                <td colspan="8" class="px-4 py-8 text-center text-on-surface-variant">
+                <td colspan="7" class="px-4 py-8 text-center text-on-surface-variant">
                   <span class="material-symbols-outlined text-4xl mb-2 text-on-surface-variant/40 block">account_balance_wallet</span>
                   No class fee structures configured yet. Click "New Fee Structure" to configure one.
                 </td>
@@ -134,7 +132,7 @@
                 </select>
               </div>
             </div>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-label-md font-semibold text-on-surface mb-1">Amount (₹) <span class="text-error">*</span></label>
                 <input type="number" step="0.01" min="0" name="amount" id="fs_amount" required placeholder="0.00" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md font-mono focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
@@ -147,10 +145,6 @@
                   <option value="Monthly">Monthly</option>
                   <option value="One-Time">One-Time</option>
                 </select>
-              </div>
-              <div>
-                <label class="block text-label-md font-semibold text-on-surface mb-1">Default Due Date</label>
-                <input type="date" name="due_date" id="fs_due_date" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -175,7 +169,6 @@
         document.getElementById('fs_fee_type_id').value = '';
         document.getElementById('fs_amount').value = '';
         document.getElementById('fs_frequency').value = 'Annual';
-        document.getElementById('fs_due_date').value = '';
         document.getElementById('fs_status').checked = true;
         document.getElementById('structureModal').classList.remove('hidden');
       }
@@ -188,7 +181,6 @@
         document.getElementById('fs_fee_type_id').value = st.fee_type_id;
         document.getElementById('fs_amount').value = st.amount;
         document.getElementById('fs_frequency').value = st.frequency;
-        document.getElementById('fs_due_date').value = st.due_date || '';
         document.getElementById('fs_status').checked = st.status == 1;
         document.getElementById('structureModal').classList.remove('hidden');
       }
