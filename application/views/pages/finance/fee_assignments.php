@@ -121,8 +121,12 @@
                   elseif ($a->status === 'Partially_Paid') $badgeClass = 'bg-amber-100 text-amber-900 font-semibold';
                   elseif ($a->status === 'Pending') $badgeClass = 'bg-error-container text-on-error-container font-semibold';
                 ?>
-                <tr class="hover:bg-surface-container-low/30 transition-colors">
-                  <td class="px-4 py-3 font-mono font-bold text-primary"><?php echo html_escape($a->invoice_number); ?></td>
+                  <td class="px-4 py-3 font-mono font-bold text-primary whitespace-nowrap">
+                    <a href="<?php echo site_url('finance/student_invoice/' . $a->id); ?>" class="hover:underline flex items-center gap-1" title="View Dedicated Invoice">
+                      <span class="material-symbols-outlined text-[15px]">description</span>
+                      <?php echo html_escape($a->invoice_number); ?>
+                    </a>
+                  </td>
                   <td class="px-4 py-3">
                     <div class="font-semibold text-on-surface"><?php echo html_escape($a->first_name . ' ' . $a->last_name); ?></div>
                     <div class="text-xs font-mono text-on-surface-variant"><?php echo html_escape($a->admission_no); ?></div>

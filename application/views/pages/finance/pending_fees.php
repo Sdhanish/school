@@ -48,7 +48,12 @@
                   $days_diff = round((strtotime($today) - strtotime($pf->due_date)) / (60 * 60 * 24));
                 ?>
                 <tr class="hover:bg-surface-container-low/30 transition-colors">
-                  <td class="px-4 py-3 font-mono font-bold text-primary"><?php echo html_escape($pf->invoice_number); ?></td>
+                  <td class="px-4 py-3 font-mono font-bold text-primary whitespace-nowrap">
+                    <a href="<?php echo site_url('finance/student_invoice/' . $pf->id); ?>" class="hover:underline flex items-center gap-1" title="View Invoice">
+                      <span class="material-symbols-outlined text-[15px]">description</span>
+                      <?php echo html_escape($pf->invoice_number); ?>
+                    </a>
+                  </td>
                   <td class="px-4 py-3">
                     <div class="font-semibold text-on-surface"><?php echo html_escape($pf->first_name . ' ' . $pf->last_name); ?></div>
                     <div class="text-xs font-mono text-on-surface-variant"><?php echo html_escape($pf->admission_no); ?></div>
@@ -71,9 +76,14 @@
                     <?php endif; ?>
                   </td>
                   <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <a href="<?php echo site_url('finance/fee_collection?student_id=' . $pf->student_id . '&assignment_id=' . $pf->id); ?>" class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-secondary text-on-secondary text-xs font-semibold hover:bg-secondary/90 transition-colors shadow-2xs">
-                      <span class="material-symbols-outlined text-[14px]">add_card</span>Pay
-                    </a>
+                    <div class="flex items-center justify-end gap-1">
+                      <a href="<?php echo site_url('finance/student_invoice/' . $pf->id); ?>" class="p-1 rounded text-primary hover:bg-primary/10 transition-colors inline-block" title="View Invoice">
+                        <span class="material-symbols-outlined text-[16px]">visibility</span>
+                      </a>
+                      <a href="<?php echo site_url('finance/fee_collection?student_id=' . $pf->student_id . '&assignment_id=' . $pf->id); ?>" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary text-on-secondary text-xs font-semibold hover:bg-secondary/90 transition-colors shadow-2xs">
+                        <span class="material-symbols-outlined text-[14px]">add_card</span>Pay
+                      </a>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>

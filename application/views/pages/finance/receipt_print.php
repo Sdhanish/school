@@ -313,12 +313,20 @@ if (!function_exists('amount_in_words_inr_print')) {
       <div class="meta-card">
         <div class="meta-card-title">Payment & Deposit Account</div>
         <div class="meta-row">
+          <span class="meta-label">Linked Invoice #:</span>
+          <span class="meta-val font-mono"><?php echo html_escape($receipt->invoice_number ?: 'General / On-Account'); ?></span>
+        </div>
+        <div class="meta-row">
           <span class="meta-label">Payment Mode:</span>
           <span class="meta-val"><?php echo html_escape($receipt->payment_mode); ?></span>
         </div>
         <div class="meta-row">
           <span class="meta-label">Deposit Account:</span>
           <span class="meta-val"><?php echo html_escape($receipt->deposit_account_name ?? 'Cash in Hand'); ?> (<?php echo html_escape($receipt->deposit_account_code ?? '1010'); ?>)</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Received By:</span>
+          <span class="meta-val"><?php echo html_escape($receipt->received_by_name ?? 'Accounts Cashier'); ?></span>
         </div>
         <div class="meta-row">
           <span class="meta-label">Ref / UTR / Cheque #:</span>
@@ -400,8 +408,10 @@ if (!function_exists('amount_in_words_inr_print')) {
     <!-- Signatures -->
     <div class="signature-row">
       <div class="sig-block">
-        <div class="sig-line"></div>
-        <div class="sig-title">Cashier / Accountant</div>
+        <div class="sig-line" style="font-weight: 600; font-size: 12px; padding-top: 22px;">
+          <?php echo html_escape($receipt->received_by_name ?? 'Accounts Cashier'); ?>
+        </div>
+        <div class="sig-title">Cashier / Received By</div>
       </div>
       <div class="sig-block">
         <div class="sig-line"></div>

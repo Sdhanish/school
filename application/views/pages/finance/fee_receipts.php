@@ -29,14 +29,15 @@
             <tr class="border-b border-outline-variant/60 bg-surface-container-low/50">
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Receipt #</th>
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Student Name</th>
-              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Class</th>
-              <th class="px-4 py-3 text-right font-semibold text-secondary uppercase text-[11px] tracking-wider">Amount Paid (₹)</th>
-              <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Payment Mode</th>
-              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Deposited In</th>
+              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Class / Sec</th>
+              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Invoice #</th>
+              <th class="px-4 py-3 text-right font-semibold text-secondary uppercase text-[11px] tracking-wider">Amount (₹)</th>
+              <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Mode</th>
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Ref / UTR #</th>
+              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Received By</th>
               <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Date</th>
               <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Status</th>
-              <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Action</th>
+              <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/40">
@@ -53,14 +54,32 @@
                     <div class="font-semibold text-on-surface"><?php echo html_escape($c->first_name . ' ' . $c->last_name); ?></div>
                     <div class="text-xs font-mono text-on-surface-variant"><?php echo html_escape($c->admission_no); ?></div>
                   </td>
-                  <td class="px-4 py-3 text-on-surface text-sm"><?php echo html_escape($c->class_name ?: '—'); ?></td>
+                  <td class="px-4 py-3 text-on-surface text-sm">
+                    <?php echo html_escape(($c->class_name ?: '—') . (!empty($c->division_name) ? ' - ' . $c->division_name : '')); ?>
+                  </td>
+                  <td class="px-4 py-3 text-sm">
+                    <?php if (!empty($c->invoice_number)): ?>
+                      <a href="<?php echo site_url('finance/student_invoice/' . $c->fee_assignment_id); ?>" class="font-mono text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
+                        <span class="material-symbols-outlined text-[14px]">description</span>
+                        <?php echo html_escape($c->invoice_number); ?>
+                      </a>
+                    <?php else: ?>
+                      <span class="text-xs text-on-surface-variant italic">On-Account</span>
+                    <?php endif; ?>
+                  </td>
                   <td class="px-4 py-3 text-right font-mono font-bold text-secondary">₹<?php echo number_format($c->amount, 2); ?></td>
                   <td class="px-4 py-3 text-center">
                     <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-container-high text-on-surface"><?php echo html_escape($c->payment_mode); ?></span>
+                    <div class="text-[10px] text-on-surface-variant mt-0.5"><?php echo html_escape($c->deposit_account_name ?: 'Cash'); ?></div>
                   </td>
-                  <td class="px-4 py-3 text-sm text-on-surface-variant"><?php echo html_escape($c->deposit_account_name ?: 'Cash'); ?></td>
                   <td class="px-4 py-3 font-mono text-xs text-on-surface-variant"><?php echo html_escape($c->reference_number ?: '—'); ?></td>
-                  <td class="px-4 py-3 text-center font-mono text-sm"><?php echo date('d M Y', strtotime($c->receipt_date)); ?></td>
+                  <td class="px-4 py-3 text-sm">
+                    <div class="text-xs font-medium text-on-surface flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[14px] text-on-surface-variant">person_check</span>
+                      <?php echo html_escape($c->received_by_name ?? 'Accounts Cashier'); ?>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-center font-mono text-sm whitespace-nowrap"><?php echo date('d M Y', strtotime($c->receipt_date)); ?></td>
                   <td class="px-4 py-3 text-center whitespace-nowrap">
                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-secondary-container text-on-secondary-container">
                       <?php echo html_escape($c->status); ?>
@@ -69,16 +88,16 @@
                   <td class="px-4 py-3 text-right whitespace-nowrap">
                     <div class="flex items-center justify-end gap-1">
                       <!-- View Receipt -->
-                      <a href="<?php echo site_url('finance/student_receipt/' . $c->id); ?>" class="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors inline-block" title="View Full Receipt">
-                        <span class="material-symbols-outlined text-[18px]">receipt</span>
+                      <a href="<?php echo site_url('finance/student_receipt/' . $c->id); ?>" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-primary hover:bg-primary/10 transition-colors text-xs font-semibold" title="View Full Receipt">
+                        <span class="material-symbols-outlined text-[16px]">visibility</span> View
                       </a>
                       <!-- Print Receipt -->
-                      <a href="<?php echo site_url('finance/receipt_print/' . $c->id); ?>" target="_blank" class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors inline-block" title="Print Receipt">
-                        <span class="material-symbols-outlined text-[18px]">print</span>
+                      <a href="<?php echo site_url('finance/receipt_print/' . $c->id); ?>" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors text-xs font-semibold" title="Print Receipt">
+                        <span class="material-symbols-outlined text-[16px]">print</span> Print
                       </a>
                       <!-- Student Statement -->
                       <a href="<?php echo site_url('finance/student_statement/' . $c->student_id); ?>" class="p-1.5 rounded-lg text-secondary hover:bg-secondary/10 transition-colors inline-block" title="Student Statement / Ledger">
-                        <span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+                        <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
                       </a>
                     </div>
                   </td>
@@ -86,7 +105,7 @@
               <?php endforeach; ?>
             <?php else: ?>
               <tr>
-                <td colspan="10" class="px-4 py-8 text-center text-on-surface-variant">
+                <td colspan="11" class="px-4 py-8 text-center text-on-surface-variant">
                   <span class="material-symbols-outlined text-4xl mb-2 text-on-surface-variant/40 block">receipt</span>
                   No payment receipts recorded yet. Click "New Collection" to collect student fees.
                 </td>

@@ -4406,11 +4406,19 @@ class Finance_model extends CI_Model {
     public function get_fee_collections($school_id, $academic_year_id = null, $filters = [])
     {
         $school_id = (int)$school_id;
-        $this->db->select('fc.id, fc.school_id, fc.academic_year_id, fc.student_id, fc.fee_assignment_id, fc.ledger_id, fc.receipt_number, fc.receipt_date, fc.amount, fc.payment_mode, fc.deposit_account_id, fc.reference_number, fc.transaction_id, fc.remarks, fc.status, fc.created_at, s.first_name, s.last_name, s.admission_number, s.admission_number as admission_no, c.class_name, a.account_name as deposit_account_name')
+        $this->db->select('fc.id, fc.school_id, fc.academic_year_id, fc.student_id, fc.fee_assignment_id, fc.ledger_id, fc.receipt_number, fc.receipt_date, fc.amount, fc.payment_mode, fc.deposit_account_id, fc.reference_number, fc.transaction_id, fc.remarks, fc.status, fc.created_at, fc.created_by,
+                           s.first_name, s.last_name, s.admission_number, s.admission_number as admission_no,
+                           c.class_name, d.division_name,
+                           a.account_name as deposit_account_name,
+                           fa.invoice_number,
+                           COALESCE(u.name, u.username, "Accounts Cashier") as received_by_name')
                  ->from('tbl_finance_fee_collections fc')
                  ->join('tbl_students s', 's.student_id = fc.student_id', 'left')
                  ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                 ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
                  ->join('tbl_finance_accounts a', 'a.id = fc.deposit_account_id', 'left')
+                 ->join('tbl_finance_fee_assignments fa', 'fa.id = fc.fee_assignment_id', 'left')
+                 ->join('tbl_users u', 'u.user_id = fc.created_by', 'left')
                  ->where('fc.school_id', $school_id)
                  ->where('fc.is_deleted', 'n');
 
@@ -4436,7 +4444,9 @@ class Finance_model extends CI_Model {
                            fa.invoice_number, fa.due_date as invoice_due_date, fa.net_amount as invoice_net_amount, fa.paid_amount as invoice_paid_amount, fa.due_amount as invoice_due_amount, fa.status as invoice_status,
                            ft.type_name as fee_name, ft.type_code as fee_code,
                            fs.structure_name, fs.frequency,
-                           t.transaction_number, t.status as transaction_status')
+                           t.transaction_number, t.status as transaction_status,
+                           COALESCE(u.name, u.username, "Accounts Cashier") as received_by_name,
+                           u.email as received_by_email')
                  ->from('tbl_finance_fee_collections fc')
                  ->join('tbl_students s', 's.student_id = fc.student_id', 'left')
                  ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
@@ -4446,6 +4456,7 @@ class Finance_model extends CI_Model {
                  ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
                  ->join('tbl_finance_fee_types ft', 'ft.id = fs.fee_type_id', 'left')
                  ->join('tbl_finance_transactions t', 't.id = fc.transaction_id', 'left')
+                 ->join('tbl_users u', 'u.user_id = fc.created_by', 'left')
                  ->where('fc.id', $receipt_id)
                  ->where('fc.school_id', $school_id)
                  ->where('fc.is_deleted', 'n');

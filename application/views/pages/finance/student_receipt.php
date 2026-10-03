@@ -209,6 +209,26 @@ if (!function_exists('amount_in_words_inr')) {
               </span>
             </div>
             <div class="flex justify-between">
+              <span class="text-on-surface-variant">Linked Invoice #:</span>
+              <span class="font-mono font-semibold text-primary">
+                <?php if (!empty($receipt->invoice_number)): ?>
+                  <a href="<?php echo site_url('finance/student_invoice/' . $receipt->fee_assignment_id); ?>" class="hover:underline flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[14px]">description</span>
+                    <?php echo html_escape($receipt->invoice_number); ?>
+                  </a>
+                <?php else: ?>
+                  <span class="italic text-on-surface-variant">General / On-Account</span>
+                <?php endif; ?>
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-on-surface-variant">Received By:</span>
+              <span class="font-semibold text-on-surface flex items-center gap-1">
+                <span class="material-symbols-outlined text-[15px] text-on-surface-variant">person_check</span>
+                <?php echo html_escape($receipt->received_by_name ?? 'Accounts Cashier'); ?>
+              </span>
+            </div>
+            <div class="flex justify-between">
               <span class="text-on-surface-variant">Reference / UTR #:</span>
               <span class="font-mono font-medium text-on-surface">
                 <?php echo html_escape($receipt->reference_number ?: '—'); ?>
@@ -328,8 +348,10 @@ if (!function_exists('amount_in_words_inr')) {
 
         <div class="flex items-center gap-12 text-center shrink-0">
           <div>
-            <div class="h-12 border-b border-outline-variant/80 w-36 mb-1"></div>
-            <div class="text-label-xs font-semibold text-on-surface-variant uppercase">Cashier / Receiver</div>
+            <div class="h-10 border-b border-outline-variant/80 w-36 mb-1 text-center font-semibold text-primary text-xs pt-4">
+              <?php echo html_escape($receipt->received_by_name ?? 'Accounts Cashier'); ?>
+            </div>
+            <div class="text-label-xs font-semibold text-on-surface uppercase">Cashier / Received By</div>
           </div>
           <div>
             <div class="h-12 border-b border-outline-variant/80 w-36 mb-1"></div>

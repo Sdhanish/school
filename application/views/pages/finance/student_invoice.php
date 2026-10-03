@@ -304,6 +304,7 @@ if ($invoice->status === 'Paid') {
                   <th class="px-4 py-2.5 text-left">Transaction Reference</th>
                   <th class="px-4 py-2.5 text-center">Status</th>
                   <th class="px-4 py-2.5 text-right">Amount Paid (₹)</th>
+                  <th class="px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/30">
@@ -325,6 +326,16 @@ if ($invoice->status === 'Paid') {
                     </td>
                     <td class="px-4 py-2.5 text-right font-mono font-bold text-emerald-700">
                       ₹<?php echo number_format($c->amount, 2); ?>
+                    </td>
+                    <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                      <div class="flex items-center justify-end gap-1">
+                        <a href="<?php echo site_url('finance/student_receipt/' . $c->id); ?>" class="p-1 rounded text-primary hover:bg-primary/10 transition-colors inline-block" title="View Full Receipt">
+                          <span class="material-symbols-outlined text-[16px]">visibility</span>
+                        </a>
+                        <a href="<?php echo site_url('finance/receipt_print/' . $c->id); ?>" target="_blank" class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high transition-colors inline-block" title="Print Receipt">
+                          <span class="material-symbols-outlined text-[16px]">print</span>
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>
