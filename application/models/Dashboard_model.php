@@ -235,17 +235,18 @@ class Dashboard_model extends CI_Model {
         $month_start      = date('Y-m-01');
         $academic_year_id = $academic_year_id ? (int)$academic_year_id : get_current_academic_year_id($school_id);
 
-        // Month-to-date and today's collections from tbl_finance_transaction_items
+        // Month-to-date and today's collections strictly from valid fee collections
         $row = $this->db->query("
             SELECT
-                COALESCE(SUM(CASE WHEN t.transaction_date = ? THEN ti.credit ELSE 0 END), 0) AS today_collection,
-                COALESCE(SUM(CASE WHEN t.transaction_date >= ? AND t.transaction_date <= ? THEN ti.credit ELSE 0 END), 0) AS monthly_collection
-            FROM tbl_finance_transaction_items ti
-            JOIN tbl_finance_transactions t ON t.id = ti.transaction_id AND t.status = 'Posted'
-            WHERE t.school_id = ?
-              AND (t.academic_year_id = ? OR t.academic_year_id IS NULL)
-              AND ti.student_id IS NOT NULL
-        ", [$today, $month_start, $today, $school_id, $academic_year_id])->row();
+                COALESCE(SUM(CASE WHEN receipt_date = ? THEN amount ELSE 0 END), 0) AS today_collection,
+                COALESCE(SUM(CASE WHEN receipt_date >= ? AND receipt_date <= ? THEN amount ELSE 0 END), 0) AS monthly_collection,
+                COALESCE(SUM(amount), 0) AS total_collected
+            FROM tbl_finance_fee_collections
+            WHERE status = 'Valid'
+              AND is_deleted = 'n'
+              AND school_id = ?
+              AND (academic_year_id = ? OR ? IS NULL)
+        ", [$today, $month_start, $today, $school_id, $academic_year_id, $academic_year_id])->row();
 
         // Total pending fees and overdue fees from tbl_finance_fee_assignments
         $pending_row = $this->db->query("
@@ -262,6 +263,7 @@ class Dashboard_model extends CI_Model {
         return (object)[
             'today_collection'   => (float)($row->today_collection          ?? 0),
             'monthly_collection' => (float)($row->monthly_collection        ?? 0),
+            'total_collected'    => (float)($row->total_collected          ?? 0),
             'total_pending'      => (float)($pending_row->total_pending     ?? 0),
             'overdue_amount'     => (float)($pending_row->overdue_amount    ?? 0),
         ];

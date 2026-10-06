@@ -1036,6 +1036,87 @@ class Finance_model extends CI_Model {
         return null;
     }
 
+    /**
+     * Ensure all active students and staff have corresponding sub-ledgers.
+     */
+    public function ensure_all_entity_ledgers($school_id, $type = null)
+    {
+        $school_id = (int)$school_id;
+        if ($school_id <= 0) return;
+
+        if ($type === null || $type === 'Student') {
+            $rec_acc = $this->get_account_by_code('1030', $school_id);
+            $rec_id = $rec_acc ? (int)$rec_acc->id : 0;
+            if ($rec_id > 0) {
+                $missing_students = $this->db->query("
+                    SELECT s.student_id, s.academic_year_id, s.admission_number, s.first_name, s.last_name
+                    FROM tbl_students s
+                    LEFT JOIN tbl_finance_ledgers l ON l.school_id = s.school_id AND l.entity_type = 'Student' AND l.entity_id = s.student_id AND l.is_deleted = 'n'
+                    WHERE s.school_id = ? AND s.status = 1 AND s.is_deleted = 'n' AND l.id IS NULL
+                ", [$school_id])->result();
+
+                if (!empty($missing_students)) {
+                    $insert_batch = [];
+                    foreach ($missing_students as $st) {
+                        $st_name = trim($st->first_name . ' ' . $st->last_name);
+                        $st_code = 'STU-' . ($st->admission_number ?? $st->student_id);
+                        $insert_batch[] = [
+                            'school_id'            => $school_id,
+                            'academic_year_id'     => $st->academic_year_id ?: 1,
+                            'entity_type'          => 'Student',
+                            'entity_id'            => (int)$st->student_id,
+                            'parent_account_id'    => $rec_id,
+                            'ledger_code'          => $st_code,
+                            'ledger_name'          => $st_name,
+                            'opening_balance'      => 0.00,
+                            'opening_balance_type' => 'Debit',
+                            'status'               => 1,
+                            'is_deleted'           => 'n',
+                            'created_at'           => date('Y-m-d H:i:s')
+                        ];
+                    }
+                    $this->db->insert_batch('tbl_finance_ledgers', $insert_batch);
+                }
+            }
+        }
+
+        if ($type === null || $type === 'Staff') {
+            $pay_acc = $this->get_account_by_code('2010', $school_id);
+            $pay_id = $pay_acc ? (int)$pay_acc->id : 0;
+            if ($pay_id > 0) {
+                $missing_staff = $this->db->query("
+                    SELECT sf.staff_id, sf.employee_code, sf.full_name
+                    FROM tbl_staff sf
+                    LEFT JOIN tbl_finance_ledgers l ON l.school_id = sf.school_id AND l.entity_type = 'Staff' AND l.entity_id = sf.staff_id AND l.is_deleted = 'n'
+                    WHERE sf.school_id = ? AND sf.status = 1 AND sf.is_deleted = 'n' AND l.id IS NULL
+                ", [$school_id])->result();
+
+                if (!empty($missing_staff)) {
+                    $insert_batch = [];
+                    foreach ($missing_staff as $sf) {
+                        $sf_name = trim($sf->full_name);
+                        $sf_code = 'STF-' . ($sf->employee_code ?? $sf->staff_id);
+                        $insert_batch[] = [
+                            'school_id'            => $school_id,
+                            'academic_year_id'     => 1,
+                            'entity_type'          => 'Staff',
+                            'entity_id'            => (int)$sf->staff_id,
+                            'parent_account_id'    => $pay_id,
+                            'ledger_code'          => $sf_code,
+                            'ledger_name'          => $sf_name,
+                            'opening_balance'      => 0.00,
+                            'opening_balance_type' => 'Credit',
+                            'status'               => 1,
+                            'is_deleted'           => 'n',
+                            'created_at'           => date('Y-m-d H:i:s')
+                        ];
+                    }
+                    $this->db->insert_batch('tbl_finance_ledgers', $insert_batch);
+                }
+            }
+        }
+    }
+
     // =========================================================================
     // 3B. LEDGER LIST QUERIES (Aggregated, School-Isolated)
     // =========================================================================
@@ -1046,6 +1127,7 @@ class Finance_model extends CI_Model {
     public function get_student_ledgers_list($school_id, $filters = [])
     {
         $school_id = (int)$school_id;
+        $this->ensure_all_entity_ledgers($school_id, 'Student');
 
         $this->db->select('
             l.id as ledger_id,
@@ -1121,6 +1203,7 @@ class Finance_model extends CI_Model {
     public function get_staff_ledgers_list($school_id, $filters = [])
     {
         $school_id = (int)$school_id;
+        $this->ensure_all_entity_ledgers($school_id, 'Staff');
 
         $this->db->select('
             l.id as ledger_id,
@@ -3986,7 +4069,10 @@ class Finance_model extends CI_Model {
     {
         $school_id = (int)$school_id;
 
-        // 1. Total Receivable (Pending from students / accounts receivable)
+        // Ensure sub-ledgers exist for all active students and staff
+        $this->ensure_all_entity_ledgers($school_id);
+
+        // 1. Total Receivable & Pending Fees
         $rec_acc = $this->get_account_by_code('1030', $school_id);
         $ar_balance = $rec_acc ? $this->calculate_account_balance($rec_acc->id, $school_id) : 0.00;
         
@@ -4002,42 +4088,67 @@ class Finance_model extends CI_Model {
         $fee_due = ($fee_row && $fee_row->total_due !== null) ? (float)$fee_row->total_due : 0.00;
         $total_receivable = max((float)$ar_balance, (float)$fee_due);
 
-        // 2. Total Received (Actual amount received from fee collections / payments)
-        $coll_qb = $this->db->select('SUM(amount) as total_paid')
-                             ->from('tbl_finance_fee_collections')
-                             ->where('school_id', $school_id)
-                             ->where('status', 'Valid')
-                             ->where('is_deleted', 'n');
-        if ($academic_year_id) {
-            $coll_qb->where('academic_year_id', (int)$academic_year_id);
-        }
-        $coll_row = $coll_qb->get()->row();
-        if ($coll_row && $coll_row->total_paid !== null && (float)$coll_row->total_paid > 0) {
-            $total_received = (float)$coll_row->total_paid;
-        } else {
-            $inc_qb = $this->db->select('SUM(ti.credit - ti.debit) as total_income')
-                                ->from('tbl_finance_transaction_items ti')
-                                ->join('tbl_finance_transactions t', 't.id = ti.transaction_id', 'inner')
-                                ->join('tbl_finance_accounts a', 'a.id = ti.account_id', 'inner')
-                                ->join('tbl_finance_account_groups g', 'g.id = a.account_group_id', 'inner')
-                                ->where('ti.school_id', $school_id)
-                                ->where('g.category', 'Income')
-                                ->where('t.status', 'Posted');
-            if ($academic_year_id) {
-                $inc_qb->where('t.academic_year_id', (int)$academic_year_id);
-            }
-            $inc_row = $inc_qb->get()->row();
-            $total_received = max(0.00, (float)($inc_row->total_income ?? 0.00));
-        }
+        // 2. Fee Collections (Total Received, Today's Collection, Monthly Collection)
+        $today_date = date('Y-m-d');
+        $month_start_date = date('Y-m-01');
 
-        // 3. Total Payable (Amount school currently owes: Staff + Vendor)
+        $coll_all_qb = $this->db->select('SUM(amount) as total_paid')
+                                ->from('tbl_finance_fee_collections')
+                                ->where('school_id', $school_id)
+                                ->where('status', 'Valid')
+                                ->where('is_deleted', 'n');
+        if ($academic_year_id) {
+            $coll_all_qb->where('academic_year_id', (int)$academic_year_id);
+        }
+        $coll_all_row = $coll_all_qb->get()->row();
+        $total_received = (float)($coll_all_row->total_paid ?? 0.00);
+
+        $coll_today_qb = $this->db->select('SUM(amount) as today_paid')
+                                  ->from('tbl_finance_fee_collections')
+                                  ->where('school_id', $school_id)
+                                  ->where('receipt_date', $today_date)
+                                  ->where('status', 'Valid')
+                                  ->where('is_deleted', 'n');
+        if ($academic_year_id) {
+            $coll_today_qb->where('academic_year_id', (int)$academic_year_id);
+        }
+        $coll_today_row = $coll_today_qb->get()->row();
+        $today_collection = (float)($coll_today_row->today_paid ?? 0.00);
+
+        $coll_month_qb = $this->db->select('SUM(amount) as month_paid')
+                                  ->from('tbl_finance_fee_collections')
+                                  ->where('school_id', $school_id)
+                                  ->where('receipt_date >=', $month_start_date)
+                                  ->where('receipt_date <=', $today_date)
+                                  ->where('status', 'Valid')
+                                  ->where('is_deleted', 'n');
+        if ($academic_year_id) {
+            $coll_month_qb->where('academic_year_id', (int)$academic_year_id);
+        }
+        $coll_month_row = $coll_month_qb->get()->row();
+        $monthly_collection = (float)($coll_month_row->month_paid ?? 0.00);
+
+        // 3. Total Payable & Staff Payables
         $pay_acc = $this->get_account_by_code('2010', $school_id);
         $vendor_acc = $this->get_account_by_code('2020', $school_id);
         $staff_payable = $pay_acc ? $this->calculate_account_balance($pay_acc->id, $school_id) : 0.00;
         $vendor_payable = $vendor_acc ? $this->calculate_account_balance($vendor_acc->id, $school_id) : 0.00;
+
+        // Reconcile with pending approved payroll items
+        $payroll_pending = (float)($this->db->select('COALESCE(SUM(pi.net_salary - pi.paid_amount), 0) as pending')
+                                           ->from('tbl_finance_payroll_items pi')
+                                           ->join('tbl_finance_payroll_batches b', 'b.id = pi.batch_id', 'inner')
+                                           ->where('pi.school_id', $school_id)
+                                           ->where('pi.payment_status !=', 'Paid')
+                                           ->where('pi.is_deleted', 'n')
+                                           ->where('b.is_deleted', 'n')
+                                           ->where('b.status !=', 'Draft')
+                                           ->where('b.status !=', 'Cancelled')
+                                           ->get()->row()->pending ?? 0.00);
+        $staff_payable = max((float)$staff_payable, (float)$payroll_pending);
         $total_payable = max(0.00, $staff_payable + $vendor_payable);
 
-        // 4. Total Expenses (Recorded expenses)
+        // 4. Total Expenses
         $exp_qb = $this->db->select('SUM(ti.debit - ti.credit) as total_expense')
                             ->from('tbl_finance_transaction_items ti')
                             ->join('tbl_finance_transactions t', 't.id = ti.transaction_id', 'inner')
@@ -4064,24 +4175,44 @@ class Finance_model extends CI_Model {
             $total_expenses = max(0.00, (float)($direct_exp->total_exp ?? 0.00));
         }
 
-        // 5. Cash Balance (Live from Cash Account Heads + Custom Cash Accounts)
-        $cash_accounts = $this->db->select('id')->from('tbl_finance_accounts')->where('school_id', $school_id)->where('account_type', 'Cash')->where('is_deleted', 'n')->get()->result();
+        // 5. Cash Balance (Live from active Cash Accounts)
+        $cash_accounts = $this->db->select('id')->from('tbl_finance_accounts')
+                                  ->where('school_id', $school_id)
+                                  ->where('account_type', 'Cash')
+                                  ->where('status', 1)
+                                  ->where('is_deleted', 'n')
+                                  ->get()->result();
         $cash_balance = 0.00;
         foreach ($cash_accounts as $ca) {
             $cash_balance += $this->calculate_account_balance($ca->id, $school_id);
         }
-        $custom_cash = $this->db->select('id')->from('tbl_finance_custom_accounts')->where('school_id', $school_id)->where('account_type', 'Cash')->where('is_deleted', 'n')->get()->result();
+        $custom_cash = $this->db->select('id')->from('tbl_finance_custom_accounts')
+                                ->where('school_id', $school_id)
+                                ->where('account_type', 'Cash')
+                                ->where('status', 1)
+                                ->where('is_deleted', 'n')
+                                ->get()->result();
         foreach ($custom_cash as $cca) {
             $cash_balance += $this->calculate_custom_account_balance($cca->id, $school_id);
         }
 
-        // 6. Bank Balance (Live from Bank Account Heads + Custom Bank Accounts)
-        $bank_accounts = $this->db->select('id')->from('tbl_finance_accounts')->where('school_id', $school_id)->where('account_type', 'Bank')->where('is_deleted', 'n')->get()->result();
+        // 6. Bank Balance (Live from active Bank Accounts)
+        $bank_accounts = $this->db->select('id')->from('tbl_finance_accounts')
+                                  ->where('school_id', $school_id)
+                                  ->where('account_type', 'Bank')
+                                  ->where('status', 1)
+                                  ->where('is_deleted', 'n')
+                                  ->get()->result();
         $bank_balance = 0.00;
         foreach ($bank_accounts as $ba) {
             $bank_balance += $this->calculate_account_balance($ba->id, $school_id);
         }
-        $custom_bank = $this->db->select('id')->from('tbl_finance_custom_accounts')->where('school_id', $school_id)->where('account_type', 'Bank')->where('is_deleted', 'n')->get()->result();
+        $custom_bank = $this->db->select('id')->from('tbl_finance_custom_accounts')
+                                ->where('school_id', $school_id)
+                                ->where('account_type', 'Bank')
+                                ->where('status', 1)
+                                ->where('is_deleted', 'n')
+                                ->get()->result();
         foreach ($custom_bank as $cba) {
             $bank_balance += $this->calculate_custom_account_balance($cba->id, $school_id);
         }
@@ -4095,26 +4226,47 @@ class Finance_model extends CI_Model {
         $active_accounts = $active_heads_cnt + $active_custom_cnt;
 
         // 9. Account Summary
+        $student_ledgers_cnt = $this->db->where('school_id', $school_id)->where('entity_type', 'Student')->where('status', 1)->where('is_deleted', 'n')->count_all_results('tbl_finance_ledgers');
+        $staff_ledgers_cnt   = $this->db->where('school_id', $school_id)->where('entity_type', 'Staff')->where('status', 1)->where('is_deleted', 'n')->count_all_results('tbl_finance_ledgers');
+
         $summary = [
             'account_groups'   => $this->db->where('school_id', $school_id)->where('status', 1)->where('is_deleted', 'n')->count_all_results('tbl_finance_account_groups'),
             'account_heads'    => $active_heads_cnt,
             'custom_accounts'  => $active_custom_cnt,
-            'student_accounts' => $this->db->where('school_id', $school_id)->where('entity_type', 'Student')->where('status', 1)->where('is_deleted', 'n')->count_all_results('tbl_finance_ledgers'),
-            'staff_accounts'   => $this->db->where('school_id', $school_id)->where('entity_type', 'Staff')->where('status', 1)->where('is_deleted', 'n')->count_all_results('tbl_finance_ledgers'),
+            'student_accounts' => $student_ledgers_cnt,
+            'staff_accounts'   => $staff_ledgers_cnt,
         ];
 
-        // 10. Recent Transactions
-        // Date, Reference, Description, Account, Type, Debit, Credit, Status
-        $recent_txs = $this->db->select('t.id, t.school_id, t.transaction_number, t.transaction_date, t.transaction_type, t.description, t.total_amount, t.status,
-                                        (SELECT a2.account_name FROM tbl_finance_transaction_items ti2 JOIN tbl_finance_accounts a2 ON a2.id = ti2.account_id WHERE ti2.transaction_id = t.id LIMIT 1) as account_name,
-                                        (SELECT SUM(ti3.debit) FROM tbl_finance_transaction_items ti3 WHERE ti3.transaction_id = t.id) as debit_amount,
-                                        (SELECT SUM(ti4.credit) FROM tbl_finance_transaction_items ti4 WHERE ti4.transaction_id = t.id) as credit_amount')
+        // 10. Recent Transactions with proper Debit and Credit account heads
+        $recent_txs = $this->db->select('t.id, t.school_id, t.transaction_number, t.transaction_date, t.transaction_type, t.description, t.total_amount, t.status')
                                ->from('tbl_finance_transactions t')
                                ->where('t.school_id', $school_id)
                                ->order_by('t.transaction_date', 'DESC')
                                ->order_by('t.id', 'DESC')
                                ->limit(10)
                                ->get()->result();
+
+        foreach ($recent_txs as $rt) {
+            $items = $this->db->select('ti.entry_type, a.account_name')
+                              ->from('tbl_finance_transaction_items ti')
+                              ->join('tbl_finance_accounts a', 'a.id = ti.account_id', 'inner')
+                              ->where('ti.transaction_id', $rt->id)
+                              ->get()->result();
+            $dr_accs = [];
+            $cr_accs = [];
+            foreach ($items as $it) {
+                if ($it->entry_type === 'Debit') {
+                    $dr_accs[] = $it->account_name;
+                } else {
+                    $cr_accs[] = $it->account_name;
+                }
+            }
+            $rt->debit_accounts_str  = implode(', ', array_unique($dr_accs));
+            $rt->credit_accounts_str = implode(', ', array_unique($cr_accs));
+            $rt->account_name        = !empty($dr_accs) ? $dr_accs[0] : (!empty($cr_accs) ? $cr_accs[0] : 'General');
+            $rt->debit_amount        = (float)$rt->total_amount;
+            $rt->credit_amount       = (float)$rt->total_amount;
+        }
 
         return [
             'total_receivable'    => round($total_receivable, 2),
@@ -4124,6 +4276,8 @@ class Finance_model extends CI_Model {
             'cash_balance'        => round($cash_balance, 2),
             'bank_balance'        => round($bank_balance, 2),
             'pending_payments'    => round($pending_payments, 2),
+            'today_collection'    => round($today_collection, 2),
+            'monthly_collection'  => round($monthly_collection, 2),
             'active_accounts'     => $active_accounts,
             'account_summary'     => $summary,
             'recent_transactions' => $recent_txs,

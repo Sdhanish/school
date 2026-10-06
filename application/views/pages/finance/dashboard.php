@@ -333,10 +333,9 @@
           <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Date</th>
           <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Reference</th>
           <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Description</th>
-          <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Account</th>
+          <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Accounts (Dr &rarr; Cr)</th>
           <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Type</th>
-          <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Debit</th>
-          <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Credit</th>
+          <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Amount (₹)</th>
           <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Status</th>
         </tr>
       </thead>
@@ -350,24 +349,26 @@
               <td class="px-4 py-3 font-mono text-[13px] text-primary font-semibold whitespace-nowrap">
                 <?php echo html_escape($txn->transaction_number); ?>
               </td>
-              <td class="px-4 py-3 text-on-surface text-sm max-w-[240px] truncate" title="<?php echo html_escape($txn->description ?? '—'); ?>">
+              <td class="px-4 py-3 text-on-surface text-sm max-w-[220px] truncate" title="<?php echo html_escape($txn->description ?? '—'); ?>">
                 <?php echo html_escape($txn->description ?? '—'); ?>
               </td>
-              <td class="px-4 py-3 text-on-surface text-sm whitespace-nowrap">
-                <?php echo html_escape($txn->account_name ?? 'Multiple Accounts'); ?>
+              <td class="px-4 py-3 text-on-surface text-xs whitespace-nowrap">
+                <?php if (!empty($txn->debit_accounts_str) || !empty($txn->credit_accounts_str)): ?>
+                  <div class="leading-tight">
+                    <span class="text-emerald-700 font-medium">Dr: <?php echo html_escape($txn->debit_accounts_str ?: '—'); ?></span><br>
+                    <span class="text-slate-500 font-normal">Cr: <?php echo html_escape($txn->credit_accounts_str ?: '—'); ?></span>
+                  </div>
+                <?php else: ?>
+                  <span class="text-slate-400">—</span>
+                <?php endif; ?>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container-high text-on-surface">
                   <?php echo html_escape(str_replace('_', ' ', $txn->transaction_type)); ?>
                 </span>
               </td>
-              <td class="px-4 py-3 text-right font-mono font-semibold text-on-surface whitespace-nowrap text-sm">
-                <?php $deb = (float)($txn->debit_amount ?? 0); ?>
-                <?php echo ($deb > 0) ? ('₹' . number_format($deb, 2)) : '—'; ?>
-              </td>
-              <td class="px-4 py-3 text-right font-mono font-semibold text-on-surface whitespace-nowrap text-sm">
-                <?php $cred = (float)($txn->credit_amount ?? 0); ?>
-                <?php echo ($cred > 0) ? ('₹' . number_format($cred, 2)) : '—'; ?>
+              <td class="px-4 py-3 text-right font-mono font-bold text-on-surface whitespace-nowrap text-sm">
+                ₹<?php echo number_format($txn->total_amount, 2); ?>
               </td>
               <td class="px-4 py-3 text-center whitespace-nowrap">
                 <?php if (($txn->status ?? '') === 'Reversed'): ?>

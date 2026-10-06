@@ -45,8 +45,9 @@
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Voucher #</th>
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Type</th>
               <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Narration / Particulars</th>
-              <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Debit (₹)</th>
-              <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Credit (₹)</th>
+              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Debit Account (Dr)</th>
+              <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Credit Account (Cr)</th>
+              <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Amount (₹)</th>
               <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Status</th>
               <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Action</th>
             </tr>
@@ -68,8 +69,11 @@
                       <span class="block text-[11px] font-mono text-on-surface-variant">Ref: <?php echo html_escape($t->reference_no); ?></span>
                     <?php endif; ?>
                   </td>
-                  <td class="px-4 py-3 text-right font-mono font-bold text-on-surface whitespace-nowrap">
-                    ₹<?php echo number_format($t->total_amount, 2); ?>
+                  <td class="px-4 py-3 text-emerald-700 text-xs font-medium whitespace-nowrap">
+                    <?php echo html_escape($t->debit_accounts_str ?: '—'); ?>
+                  </td>
+                  <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    <?php echo html_escape($t->credit_accounts_str ?: '—'); ?>
                   </td>
                   <td class="px-4 py-3 text-right font-mono font-bold text-on-surface whitespace-nowrap">
                     ₹<?php echo number_format($t->total_amount, 2); ?>
