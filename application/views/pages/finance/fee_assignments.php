@@ -236,7 +236,7 @@
               <label class="block text-label-md font-semibold text-on-surface mb-1">
                 Select Student <span class="text-error">*</span>
               </label>
-              <select name="student_id" id="assign_student_id" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
+              <select name="student_id" id="assign_student_id" onchange="checkDuplicateAssignment()" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
                 <option value="">-- First Select a Class Above --</option>
               </select>
               <p id="studentLoadingMsg" class="text-xs text-primary mt-1 hidden flex items-center gap-1">
@@ -247,7 +247,7 @@
             <!-- Fee Structure Selection -->
             <div>
               <label class="block text-label-md font-semibold text-on-surface mb-1">Fee Structure <span class="text-error">*</span></label>
-              <select name="fee_structure_id" id="assign_structure_id" required class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
+              <select name="fee_structure_id" id="assign_structure_id" required onchange="checkDuplicateAssignment()" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
                 <option value="">-- Select Fee Structure --</option>
                 <?php if (!empty($structures)): ?>
                   <?php foreach ($structures as $st): ?>
@@ -257,6 +257,15 @@
                   <?php endforeach; ?>
                 <?php endif; ?>
               </select>
+            </div>
+
+            <!-- Duplicate Assignment Warning Banner -->
+            <div id="duplicateWarningBox" class="hidden p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-body-xs text-amber-900 flex items-start gap-2.5">
+              <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5">warning</span>
+              <div>
+                <strong class="text-amber-950 font-semibold block text-body-sm">Fee Already Assigned</strong>
+                <span id="duplicateWarningText" class="text-amber-900/90 leading-relaxed block mt-0.5">This student has already been assigned this fee structure. Duplicate assignment is prohibited.</span>
+              </div>
             </div>
 
             <!-- Payment Due Date -->
@@ -445,6 +454,22 @@
 
       function closeAssignModal() {
         document.getElementById('assignModal').classList.add('hidden');
+        resetDuplicateWarning();
+      }
+
+      function resetDuplicateWarning() {
+        const warningBox = document.getElementById('duplicateWarningBox');
+        const btnSubmit = document.getElementById('btnSubmitAssign');
+        if (warningBox) warningBox.classList.add('hidden');
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.classList.remove('opacity-50', 'cursor-not-allowed');
+          if (currentAssignMode === 'bulk') {
+            btnSubmit.textContent = 'Assign to Class Students';
+          } else {
+            btnSubmit.textContent = 'Generate Student Invoice';
+          }
+        }
       }
 
       function switchAssignMode(mode) {
@@ -458,6 +483,8 @@
         const studentSelect = document.getElementById('assign_student_id');
         const modalTitle = document.getElementById('assignModalTitle');
         const btnSubmit = document.getElementById('btnSubmitAssign');
+
+        resetDuplicateWarning();
 
         if (mode === 'bulk') {
           tabBulk.className = 'flex-1 py-2 text-center text-label-md font-semibold rounded-lg bg-surface-container-lowest text-primary shadow-xs transition-all cursor-pointer';
@@ -488,6 +515,8 @@
         const classId = document.getElementById('assign_class_id').value;
         if (currentAssignMode === 'individual' && classId) {
           loadStudentsForClass(classId);
+        } else {
+          resetDuplicateWarning();
         }
       }
 
@@ -514,11 +543,55 @@
             } else {
               studentSelect.innerHTML = '<option value="">No active students found in this class</option>';
             }
+            checkDuplicateAssignment();
           })
           .catch(err => {
             loadingMsg.classList.add('hidden');
             studentSelect.innerHTML = '<option value="">Failed to load students</option>';
             console.error('Error loading students:', err);
+          });
+      }
+
+      function checkDuplicateAssignment() {
+        const warningBox = document.getElementById('duplicateWarningBox');
+        const warningText = document.getElementById('duplicateWarningText');
+        const btnSubmit = document.getElementById('btnSubmitAssign');
+
+        if (currentAssignMode !== 'individual') {
+          resetDuplicateWarning();
+          return;
+        }
+
+        const studentSelect = document.getElementById('assign_student_id');
+        const structureSelect = document.getElementById('assign_structure_id');
+        const studentId = studentSelect ? studentSelect.value : '';
+        const structureId = structureSelect ? structureSelect.value : '';
+
+        if (!studentId || !structureId || studentId === '0' || structureId === '0') {
+          resetDuplicateWarning();
+          return;
+        }
+
+        fetch('<?php echo site_url("finance/check_fee_assignment_ajax"); ?>?student_id=' + encodeURIComponent(studentId) + '&fee_structure_id=' + encodeURIComponent(structureId))
+          .then(res => res.json())
+          .then(data => {
+            if (data.assigned && data.details) {
+              if (warningBox) warningBox.classList.remove('hidden');
+              if (warningText) {
+                const dueDateFormatted = formatDateStr(data.details.due_date);
+                warningText.textContent = `This student is already assigned this fee structure under Invoice #${data.details.invoice_number} (Amount: ₹${parseFloat(data.details.assigned_amount).toFixed(2)}, Due: ${dueDateFormatted}, Status: ${data.details.status}). Assigning it again is prevented.`;
+              }
+              if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.classList.add('opacity-50', 'cursor-not-allowed');
+                btnSubmit.textContent = 'Already Assigned';
+              }
+            } else {
+              resetDuplicateWarning();
+            }
+          })
+          .catch(err => {
+            console.error('Duplicate check error:', err);
           });
       }
 

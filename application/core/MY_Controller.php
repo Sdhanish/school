@@ -539,6 +539,7 @@ class MY_Controller extends CI_Controller {
                 case 'ledgers':
                     return 'finance_ledgers_group';
                 case 'ledger_students':
+                case 'student_ledger':
                 case 'student_statement':
                     return 'finance_ledgers_student';
                 case 'ledger_staff':
@@ -607,6 +608,13 @@ class MY_Controller extends CI_Controller {
                 case 'transfers':
                 case 'cash_transfers':
                     return 'finance_cb_transfers';
+                // Staff Finance
+                case 'salary_setup':
+                    return 'finance_salary_setup';
+                case 'salary_processing':
+                    return 'finance_salary_processing';
+                case 'salary_payable':
+                    return 'finance_salary_payable';
                 // Reports
                 case 'reports':
                     return 'finance_reports_group';

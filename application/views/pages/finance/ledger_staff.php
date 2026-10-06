@@ -91,7 +91,7 @@
         <tbody class="divide-y divide-outline-variant/40">
           <?php if (empty($ledgers)): ?>
             <tr>
-              <td colspan="9" class="px-4 py-12 text-center text-on-surface-variant">
+              <td colspan="8" class="px-4 py-12 text-center text-on-surface-variant">
                 <span class="material-symbols-outlined text-[40px] block mb-2 text-on-surface-variant/50">badge</span>
                 No staff ledger accounts found.
                 <p class="text-body-sm mt-1">Staff ledgers are created automatically when a staff payout is recorded.</p>
@@ -147,7 +147,7 @@
       $(table).DataTable({
         responsive: true,
         pageLength: 25,
-        order: [[7, 'desc']],
+        order: [[6, 'desc']],
         language: {
           emptyTable: "No staff ledgers found.",
           search: "Quick search:",
@@ -156,7 +156,7 @@
           infoEmpty: "No records",
           paginate: { next: 'Next →', previous: '← Prev' }
         },
-        columnDefs: [{ orderable: false, targets: [0, 8] }]
+        columnDefs: [{ orderable: false, targets: [0, 7] }]
       });
     }
   });

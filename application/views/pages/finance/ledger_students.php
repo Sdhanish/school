@@ -6,10 +6,12 @@
       <nav class="flex items-center gap-1.5 text-[12px] text-on-surface-variant mb-1">
         <a href="<?php echo site_url('finance/dashboard'); ?>" class="hover:text-primary">Fee & Finance</a>
         <span class="material-symbols-outlined text-[14px]">chevron_right</span>
-        <span class="text-primary font-semibold">Student Ledgers</span>
+        <span class="text-on-surface-variant">Student Finance</span>
+        <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+        <span class="text-primary font-semibold">Student Ledger</span>
       </nav>
-      <h2 class="font-headline-md text-headline-md text-on-surface">Student Ledger Accounts</h2>
-      <p class="text-body-md font-body-md text-on-surface-variant mt-1">Individual student receivable accounts – fee invoices, payments & running balances.</p>
+      <h2 class="font-headline-md text-headline-md text-on-surface">Student Ledger Directory</h2>
+      <p class="text-body-md font-body-md text-on-surface-variant mt-1">Individual student receivable accounts – fee invoices debited, payments credited, and running balances.</p>
     </div>
     <div class="flex items-center gap-2 shrink-0 flex-wrap">
       <a href="<?php echo site_url('finance/fee_collection'); ?>" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-primary/90 transition-colors shadow-sm">
@@ -17,6 +19,9 @@
       </a>
       <a href="<?php echo site_url('finance/fee_assignments'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
         <span class="material-symbols-outlined text-[18px]">assignment</span>Assign Fees
+      </a>
+      <a href="<?php echo site_url('finance/pending_fees'); ?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant bg-surface-container-lowest text-label-md hover:bg-surface-container-high transition-colors">
+        <span class="material-symbols-outlined text-[18px]">pending_actions</span>Outstanding Dues
       </a>
     </div>
   </div>
@@ -29,7 +34,7 @@
         <span class="text-body-sm font-semibold text-amber-800 uppercase tracking-wide">Total Outstanding</span>
       </div>
       <div class="text-2xl font-bold font-mono text-amber-700">₹<?php echo number_format($total_outstanding, 2); ?></div>
-      <div class="text-body-xs text-amber-600 mt-1">Aggregate receivable due</div>
+      <div class="text-body-xs text-amber-600 mt-1">Aggregate receivable due (Debit)</div>
     </div>
     <div class="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 elevation-1">
       <div class="flex items-center gap-3 mb-2">
@@ -45,21 +50,21 @@
         <span class="text-body-sm font-semibold text-emerald-800 uppercase tracking-wide">Clear / Credit</span>
       </div>
       <div class="text-2xl font-bold font-mono text-emerald-700"><?php echo number_format($credit_count); ?></div>
-      <div class="text-body-xs text-emerald-600 mt-1">Students with no dues</div>
+      <div class="text-body-xs text-emerald-600 mt-1">Students with no dues / advance</div>
     </div>
   </div>
 
-  <!-- Filters -->
+  <!-- Filters & Quick Student Selector -->
   <div class="elevation-1 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 p-4 mb-5">
     <form method="get" action="<?php echo site_url('finance/ledger_students'); ?>" class="flex flex-wrap items-end gap-3">
       <div class="flex-1 min-w-[180px]">
-        <label class="block text-body-xs text-on-surface-variant font-semibold mb-1 uppercase tracking-wide">Search Student</label>
+        <label class="block text-body-xs text-on-surface-variant font-semibold mb-1 uppercase tracking-wide">Search Directory</label>
         <input type="text" name="search" value="<?php echo html_escape($filters['search'] ?? ''); ?>"
-               placeholder="Name, admission no, ledger code…"
+               placeholder="Student name, admission no, ledger code…"
                class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-body-sm focus:outline-none focus:border-primary"/>
       </div>
       <?php if (!empty($classes)): ?>
-      <div class="min-w-[160px]">
+      <div class="min-w-[150px]">
         <label class="block text-body-xs text-on-surface-variant font-semibold mb-1 uppercase tracking-wide">Class</label>
         <select name="class_id" class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-body-sm focus:outline-none focus:border-primary">
           <option value="">All Classes</option>
@@ -71,6 +76,22 @@
         </select>
       </div>
       <?php endif; ?>
+
+      <?php if (!empty($all_students)): ?>
+      <div class="min-w-[210px]">
+        <label class="block text-body-xs text-primary font-semibold mb-1 uppercase tracking-wide">Select Student Statement</label>
+        <select onchange="if(this.value) window.location.href='<?php echo site_url('finance/student_statement/'); ?>' + this.value"
+                class="w-full px-3 py-2 rounded-lg border border-primary/40 bg-surface-container-lowest text-body-sm focus:outline-none focus:border-primary">
+          <option value="">-- Jump to Statement --</option>
+          <?php foreach ($all_students as $st): ?>
+            <option value="<?php echo $st->student_id; ?>">
+              <?php echo html_escape($st->first_name . ' ' . $st->last_name . ' (' . ($st->admission_number ?: 'ID:' . $st->student_id) . ')'); ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
+
       <div class="flex gap-2">
         <button type="submit" class="px-4 py-2 rounded-lg bg-primary text-on-primary text-body-sm font-semibold hover:bg-primary/90 transition-colors">
           <span class="material-symbols-outlined text-[16px] align-middle">search</span> Filter
@@ -85,10 +106,10 @@
     <div class="px-5 py-3 border-b border-outline-variant/40 flex items-center justify-between">
       <span class="text-title-sm font-semibold text-on-surface">
         <span class="material-symbols-outlined text-primary align-middle text-[18px] mr-1">menu_book</span>
-        Student Ledger Accounts
+        Student Sub-Ledger Directory
         <span class="ml-2 text-body-xs text-on-surface-variant font-normal">(<?php echo $total_count; ?> accounts)</span>
       </span>
-      <span class="text-body-xs text-on-surface-variant">Click a row to view full statement</span>
+      <span class="text-body-xs text-on-surface-variant">Click student or "Statement" to view statement</span>
     </div>
     <div class="table-scroll overflow-x-auto">
       <table class="w-full data-table border-collapse text-body-md" id="student-ledger-table">
@@ -99,10 +120,10 @@
             <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Admission No.</th>
             <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Class</th>
             <th class="px-4 py-3 text-left font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Ledger Code</th>
-            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Total Debited</th>
-            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Total Paid</th>
-            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Balance Due</th>
-            <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Actions</th>
+            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Total Debited (Invoiced)</th>
+            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Total Paid (Credit)</th>
+            <th class="px-4 py-3 text-right font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Balance Due (Outstanding)</th>
+            <th class="px-4 py-3 text-center font-semibold text-on-surface-variant uppercase text-[11px] tracking-wider">Action</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/40">

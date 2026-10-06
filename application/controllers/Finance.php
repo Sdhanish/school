@@ -754,14 +754,23 @@ class Finance extends MY_Controller {
 
         $student_name = $statement['student'] ? ($statement['student']->first_name . ' ' . $statement['student']->last_name) : ($student->first_name . ' ' . $student->last_name);
 
+        // Fetch students for quick-switching in the statement view
+        $students_list = $this->db->select('student_id, first_name, last_name, admission_number')
+                                  ->where('school_id', $this->school_id)
+                                  ->where('is_deleted', 'n')
+                                  ->order_by('first_name ASC, last_name ASC')
+                                  ->get('tbl_students')
+                                  ->result();
+
         $this->render('pages/finance/student_statement', array(
-            'title'      => 'Student Ledger — ' . $student_name,
-            'page_key'   => 'finance_ledgers_student',
-            'breadcrumb' => array('Fee & Finance', 'Student Finance', 'Student Ledger', $student_name),
-            'student'    => $statement['student'] ?? $student,
-            'statement'  => $statement,
-            'from_date'  => $from_date,
-            'to_date'    => $to_date,
+            'title'         => 'Student Ledger — ' . $student_name,
+            'page_key'      => 'finance_ledgers_student',
+            'breadcrumb'    => array('Fee & Finance', 'Student Finance', 'Student Ledger', $student_name),
+            'student'       => $statement['student'] ?? $student,
+            'statement'     => $statement,
+            'from_date'     => $from_date,
+            'to_date'       => $to_date,
+            'students_list' => $students_list,
         ));
     }
 
@@ -798,9 +807,24 @@ class Finance extends MY_Controller {
     // -------------------------------------------------------------------------
     // 3B. Dedicated Ledger Sub-Pages
     // -------------------------------------------------------------------------
+    public function student_ledger($student_id = null)
+    {
+        if ($student_id) {
+            redirect('finance/student_statement/' . (int)$student_id);
+            return;
+        }
+        $this->ledger_students();
+    }
+
     public function ledger_students()
     {
         $this->require_permission(array('finance.ledgers.view', 'finance.manage_ledgers', 'finance.view'));
+
+        $selected_student_id = (int)$this->input->get('student_id');
+        if ($selected_student_id > 0) {
+            redirect('finance/student_statement/' . $selected_student_id);
+            return;
+        }
 
         $filters = array(
             'search'      => trim($this->input->get('search') ?? ''),
@@ -812,6 +836,13 @@ class Finance extends MY_Controller {
 
         $this->load->model('Class_model');
         $classes = $this->Class_model->get_all(['school_id' => $this->school_id, 'is_deleted' => 'n']);
+
+        $all_students = $this->db->select('student_id, first_name, last_name, admission_number')
+                                 ->where('school_id', $this->school_id)
+                                 ->where('is_deleted', 'n')
+                                 ->order_by('first_name ASC, last_name ASC')
+                                 ->get('tbl_students')
+                                 ->result();
 
         // Compute aggregate KPIs
         $total_outstanding = 0;
@@ -828,6 +859,7 @@ class Finance extends MY_Controller {
             'breadcrumb'        => array('Fee & Finance', 'Student Finance', 'Student Ledger'),
             'ledgers'           => $ledgers,
             'classes'           => $classes,
+            'all_students'      => $all_students,
             'filters'           => $filters,
             'total_count'       => $total_count,
             'total_outstanding' => $total_outstanding,
@@ -1366,62 +1398,450 @@ class Finance extends MY_Controller {
     }
 
     /**
-     * Phase 1 Placeholder: Salary Setup (Staff Finance)
+     * Phase 7: Salary Setup (Staff Finance Foundation)
      */
     public function salary_setup()
     {
         $this->require_permission(array('finance.view'));
 
-        $this->render('pages/finance/placeholder', array(
-            'title'       => 'Salary Setup — Staff Finance',
-            'module_name' => 'Salary Setup',
-            'group_name'  => 'STAFF FINANCE',
-            'badge'       => 'NEW',
-            'description' => 'Staff salary structure, pay grades, and basic/allowance components configuration.',
-            'page_key'    => 'finance_salary_setup',
-            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Setup'),
+        // Handle POST submissions
+        if ($this->input->method() === 'post') {
+            $action = $this->input->post('action');
+
+            if ($action === 'delete_structure') {
+                $id = (int)$this->input->post('id');
+                if ($id > 0) {
+                    $this->Finance_model->delete_salary_structure($id, $this->school_id);
+                    $this->session->set_flashdata('success', 'Salary structure deleted successfully.');
+                }
+                redirect('finance/salary_setup');
+                return;
+            }
+
+            if ($action === 'delete_component') {
+                $id = (int)$this->input->post('id');
+                if ($id > 0) {
+                    $this->Finance_model->delete_salary_component($id, $this->school_id);
+                    $this->session->set_flashdata('success', 'Salary component deleted successfully.');
+                }
+                redirect('finance/salary_setup?tab=components');
+                return;
+            }
+
+            if ($action === 'save_component') {
+                $comp_data = [
+                    'id'               => $this->input->post('id') ?: null,
+                    'component_name'   => trim($this->input->post('component_name')),
+                    'component_code'   => trim($this->input->post('component_code')),
+                    'component_type'   => $this->input->post('component_type'),
+                    'deduction_payer'  => $this->input->post('deduction_payer') ?: 'Employee',
+                    'description'      => trim($this->input->post('description')),
+                    'calculation_type' => $this->input->post('calculation_type') ?: 'Fixed',
+                    'default_amount'   => (float)$this->input->post('default_amount'),
+                    'percentage_value' => (float)$this->input->post('percentage_value'),
+                    'is_taxable'       => $this->input->post('is_taxable') ? 1 : 0,
+                    'status'           => $this->input->post('status') ? 1 : 0,
+                ];
+
+                if (empty($comp_data['component_name']) || empty($comp_data['component_code'])) {
+                    $this->session->set_flashdata('error', 'Please provide both Component Name and Code.');
+                } else {
+                    $this->Finance_model->save_salary_component($comp_data, $this->school_id);
+                    $this->session->set_flashdata('success', 'Salary component saved successfully.');
+                }
+                redirect('finance/salary_setup?tab=components');
+                return;
+            }
+
+            if ($action === 'save_structure') {
+                $staff_id       = (int)$this->input->post('staff_id');
+                $structure_name = trim($this->input->post('structure_name'));
+                $effective_from = $this->input->post('effective_from') ?: date('Y-m-d');
+                $effective_to   = $this->input->post('effective_to') ?: null;
+                $pay_frequency  = $this->input->post('pay_frequency') ?: 'Monthly';
+                $remarks        = trim($this->input->post('remarks') ?? '');
+                $status         = $this->input->post('status') ? 1 : 0;
+                $structure_id   = $this->input->post('id') ?: null;
+
+                if ($staff_id <= 0 || empty($structure_name)) {
+                    $this->session->set_flashdata('error', 'Please select a staff member and specify a structure name.');
+                    redirect('finance/salary_setup');
+                    return;
+                }
+
+                $header_data = [
+                    'id'             => $structure_id,
+                    'staff_id'       => $staff_id,
+                    'structure_name' => $structure_name,
+                    'effective_from' => $effective_from,
+                    'effective_to'   => $effective_to,
+                    'pay_frequency'  => $pay_frequency,
+                    'remarks'        => $remarks,
+                    'status'         => $status,
+                ];
+
+                // Parse posted items
+                $raw_items = $this->input->post('items') ?: [];
+                $items_data = [];
+
+                if (!empty($raw_items['name']) && is_array($raw_items['name'])) {
+                    for ($i = 0; $i < count($raw_items['name']); $i++) {
+                        $name = trim($raw_items['name'][$i] ?? '');
+                        if (empty($name)) continue;
+
+                        $amt   = (float)($raw_items['amount'][$i] ?? 0);
+                        $type  = in_array($raw_items['type'][$i] ?? '', ['Earning', 'Deduction']) ? $raw_items['type'][$i] : 'Earning';
+                        $payer = in_array($raw_items['payer'][$i] ?? '', ['Employee', 'Employer']) ? $raw_items['payer'][$i] : 'Employee';
+                        $calc  = ($raw_items['calc'][$i] ?? '') === 'Percentage' ? 'Percentage' : 'Fixed';
+                        $pct   = (float)($raw_items['pct'][$i] ?? 0);
+                        $cid   = !empty($raw_items['cid'][$i]) ? (int)$raw_items['cid'][$i] : null;
+
+                        $items_data[] = [
+                            'component_id'     => $cid,
+                            'component_name'   => $name,
+                            'component_type'   => $type,
+                            'deduction_payer'  => $payer,
+                            'calculation_type' => $calc,
+                            'percentage'       => $pct,
+                            'amount'           => $amt,
+                        ];
+                    }
+                }
+
+                if (empty($items_data)) {
+                    $this->session->set_flashdata('error', 'Please include at least one earning component (e.g. Basic Salary).');
+                    redirect('finance/salary_setup');
+                    return;
+                }
+
+                $saved_id = $this->Finance_model->save_salary_structure($header_data, $items_data, $this->school_id);
+                if ($saved_id) {
+                    $this->session->set_flashdata('success', 'Salary structure saved successfully.');
+                } else {
+                    $this->session->set_flashdata('error', 'Failed to save salary structure. Please try again.');
+                }
+                redirect('finance/salary_setup');
+                return;
+            }
+        }
+
+        // GET request - prepare data
+        $tab = $this->input->get('tab') ?: 'structures';
+        $filters = [
+            'search'     => trim($this->input->get('search') ?? ''),
+            'staff_type' => $this->input->get('staff_type'),
+            'status'     => $this->input->get('status'),
+        ];
+
+        $structures = $this->Finance_model->get_salary_structures($this->school_id, $filters);
+        $components = $this->Finance_model->get_salary_components($this->school_id);
+
+        $staff_members = $this->db->select('sf.staff_id, sf.full_name, sf.employee_code, sf.staff_type, sf.salary, d.designation_name')
+                                  ->from('tbl_staff sf')
+                                  ->join('tbl_designations d', 'd.designation_id = sf.designation_id', 'left')
+                                  ->where('sf.school_id', $this->school_id)
+                                  ->where('sf.is_deleted', 'n')
+                                  ->where('sf.status', 1)
+                                  ->order_by('sf.full_name', 'ASC')
+                                  ->get()->result();
+
+        // Calculate KPI Metrics
+        $total_gross_payroll = 0.00;
+        $total_deductions    = 0.00;
+        $total_net_payroll   = 0.00;
+        $configured_staff_ids = [];
+
+        foreach ($structures as $st) {
+            if ($st->status == 1) {
+                $total_gross_payroll += (float)$st->gross_salary;
+                $total_deductions    += (float)$st->total_deductions;
+                $total_net_payroll   += (float)$st->net_salary;
+                $configured_staff_ids[$st->staff_id] = true;
+            }
+        }
+
+        $total_staff_count = count($staff_members);
+        $configured_count  = count($configured_staff_ids);
+
+        $this->render('pages/finance/salary_setup', array(
+            'title'               => 'Salary Setup — Staff Finance',
+            'page_key'            => 'finance_salary_setup',
+            'breadcrumb'          => array('Fee & Finance', 'Staff Finance', 'Salary Setup'),
+            'tab'                 => $tab,
+            'filters'             => $filters,
+            'structures'          => $structures,
+            'components'          => $components,
+            'staff_members'       => $staff_members,
+            'total_gross_payroll' => $total_gross_payroll,
+            'total_deductions'    => $total_deductions,
+            'total_net_payroll'   => $total_net_payroll,
+            'total_staff_count'   => $total_staff_count,
+            'configured_count'    => $configured_count,
         ));
     }
 
     /**
-     * Phase 1 Placeholder: Salary Processing (Staff Finance)
+     * AJAX: Get salary structure details with line items
+     */
+    public function salary_structure_view_ajax($id)
+    {
+        $this->require_permission(array('finance.view'));
+        $id = (int)$id;
+
+        $structure = $this->Finance_model->get_salary_structure($id, $this->school_id);
+        if (!$structure) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Structure not found']));
+            return;
+        }
+
+        $items = $this->Finance_model->get_salary_structure_items($structure->id);
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'success'   => true,
+            'structure' => $structure,
+            'items'     => $items
+        ]));
+    }
+
+    /**
+     * AJAX: Get staff salary defaults for structure builder
+     */
+    public function get_staff_salary_ajax($staff_id)
+    {
+        $this->require_permission(array('finance.view'));
+        $staff_id = (int)$staff_id;
+
+        $staff = $this->db->select('sf.staff_id, sf.full_name, sf.employee_code, sf.staff_type, sf.salary, d.designation_name')
+                          ->from('tbl_staff sf')
+                          ->join('tbl_designations d', 'd.designation_id = sf.designation_id', 'left')
+                          ->where('sf.staff_id', $staff_id)
+                          ->where('sf.school_id', $this->school_id)
+                          ->get()->row();
+
+        if (!$staff) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Staff not found']));
+            return;
+        }
+
+        $active_structure = $this->Finance_model->get_salary_structure_by_staff($staff_id, $this->school_id);
+        $active_items = $active_structure ? $this->Finance_model->get_salary_structure_items($active_structure->id) : [];
+        $components = $this->Finance_model->get_salary_components($this->school_id);
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'success'          => true,
+            'staff'            => $staff,
+            'active_structure' => $active_structure,
+            'active_items'     => $active_items,
+            'components'       => $components
+        ]));
+    }
+
+    /**
+     * Phase 9: Monthly Staff Salary Processing (Payroll)
      */
     public function salary_processing()
     {
         $this->require_permission(array('finance.view'));
 
-        $this->render('pages/finance/placeholder', array(
-            'title'       => 'Salary Processing — Staff Finance',
-            'module_name' => 'Salary Processing',
-            'group_name'  => 'STAFF FINANCE',
-            'badge'       => 'NEW',
-            'description' => 'Monthly staff payroll calculation, attendance deductions, and payslip generation.',
-            'page_key'    => 'finance_salary_processing',
-            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Processing'),
+        // Handle POST confirmation
+        if ($this->input->method() === 'post') {
+            $action = $this->input->post('action');
+
+            if ($action === 'confirm_payroll') {
+                $month   = (int)$this->input->post('month');
+                $year    = (int)$this->input->post('year');
+                $remarks = trim($this->input->post('remarks') ?? '');
+                $raw_items = $this->input->post('items') ?? [];
+
+                if ($month < 1 || $month > 12 || $year < 2000) {
+                    $this->session->set_flashdata('error', 'Please provide a valid payroll month and year.');
+                    redirect('finance/salary_processing');
+                    return;
+                }
+
+                // Check duplicate
+                $existing = $this->Finance_model->get_payroll_batch_by_period($this->school_id, $month, $year);
+                if ($existing) {
+                    $this->session->set_flashdata('error', "Payroll for " . date('F Y', mktime(0, 0, 0, $month, 10, $year)) . " has already been confirmed (Batch: {$existing->batch_number}).");
+                    redirect('finance/salary_processing?batch_id=' . $existing->id);
+                    return;
+                }
+
+                // Parse staff items submitted from preview
+                $items = [];
+                if (!empty($raw_items['staff_id']) && is_array($raw_items['staff_id'])) {
+                    for ($i = 0; $i < count($raw_items['staff_id']); $i++) {
+                        $sid = (int)($raw_items['staff_id'][$i] ?? 0);
+                        if ($sid <= 0) continue;
+
+                        $gross   = (float)($raw_items['gross_salary'][$i] ?? 0);
+                        $basic   = (float)($raw_items['basic_salary'][$i] ?? 0);
+                        $att_ded = (float)($raw_items['att_ded'][$i] ?? 0);
+                        $stat    = (float)($raw_items['stat_ded'][$i] ?? 0);
+                        $empyr   = (float)($raw_items['employer_contrib'][$i] ?? 0);
+                        $net     = (float)($raw_items['net_salary'][$i] ?? 0);
+                        $wdays   = (float)($raw_items['working_days'][$i] ?? 30);
+                        $pdays   = (float)($raw_items['present_days'][$i] ?? 30);
+                        $adays   = (float)($raw_items['absent_days'][$i] ?? 0);
+                        $str_id  = !empty($raw_items['structure_id'][$i]) ? (int)$raw_items['structure_id'][$i] : null;
+
+                        $items[] = [
+                            'staff_id'               => $sid,
+                            'structure_id'           => $str_id,
+                            'basic_salary'           => $basic,
+                            'gross_salary'           => $gross,
+                            'working_days'           => $wdays,
+                            'present_days'           => $pdays,
+                            'unpaid_leave_days'      => $adays,
+                            'attendance_deduction'   => $att_ded,
+                            'statutory_deductions'   => $stat,
+                            'employer_contributions' => $empyr,
+                            'net_salary'             => $net,
+                            'remarks'                => '',
+                        ];
+                    }
+                }
+
+                if (empty($items)) {
+                    $this->session->set_flashdata('error', 'No valid staff payroll items found to process.');
+                    redirect('finance/salary_processing');
+                    return;
+                }
+
+                $res = $this->Finance_model->confirm_payroll_batch([
+                    'month'   => $month,
+                    'year'    => $year,
+                    'remarks' => $remarks,
+                    'items'   => $items,
+                ], $this->school_id, $this->user_id);
+
+                if ($res['success']) {
+                    $this->session->set_flashdata('success', $res['message']);
+                    redirect('finance/salary_processing?batch_id=' . $res['batch_id']);
+                    return;
+                } else {
+                    $this->session->set_flashdata('error', $res['message']);
+                    redirect('finance/salary_processing');
+                    return;
+                }
+            }
+        }
+
+        // View Mode: Active Period / Selected Batch
+        $selected_batch_id = (int)$this->input->get('batch_id');
+        $selected_month    = (int)($this->input->get('month') ?: date('n'));
+        $selected_year     = (int)($this->input->get('year')  ?: date('Y'));
+
+        $selected_batch = null;
+        $batch_items    = [];
+
+        if ($selected_batch_id > 0) {
+            $selected_batch = $this->Finance_model->get_payroll_batch($selected_batch_id, $this->school_id);
+            if ($selected_batch) {
+                $batch_items   = $this->Finance_model->get_payroll_batch_items($selected_batch->id, $this->school_id);
+                $selected_month = (int)$selected_batch->payroll_month;
+                $selected_year  = (int)$selected_batch->payroll_year;
+            }
+        }
+
+        // Check if current month/year already has a confirmed batch
+        $existing_batch = $this->Finance_model->get_payroll_batch_by_period($this->school_id, $selected_month, $selected_year);
+
+        // Calculate preview dynamically if not already viewing an archived batch
+        $preview_data = null;
+        if (!$selected_batch) {
+            $preview_data = $this->Finance_model->calculate_monthly_payroll_preview($this->school_id, $selected_month, $selected_year);
+        }
+
+        $all_batches = $this->Finance_model->get_payroll_batches($this->school_id);
+
+        $this->render('pages/finance/salary_processing', array(
+            'title'           => 'Salary Processing — Staff Finance',
+            'page_key'        => 'finance_salary_processing',
+            'breadcrumb'      => array('Fee & Finance', 'Staff Finance', 'Salary Processing'),
+            'selected_month'  => $selected_month,
+            'selected_year'   => $selected_year,
+            'existing_batch'  => $existing_batch,
+            'selected_batch'  => $selected_batch,
+            'batch_items'     => $batch_items,
+            'preview_data'    => $preview_data,
+            'all_batches'     => $all_batches,
         ));
     }
 
     /**
-     * Phase 1 Placeholder: Salary Payable (Staff Finance)
+     * AJAX endpoint to fetch preview data when month/year changes
+     */
+    public function payroll_preview_ajax()
+    {
+        $this->require_permission(array('finance.view'));
+
+        $month = (int)$this->input->get('month');
+        $year  = (int)$this->input->get('year');
+
+        if ($month < 1 || $month > 12 || $year < 2000) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Invalid period.']));
+            return;
+        }
+
+        $existing = $this->Finance_model->get_payroll_batch_by_period($this->school_id, $month, $year);
+        $preview  = $this->Finance_model->calculate_monthly_payroll_preview($this->school_id, $month, $year);
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'success'        => true,
+            'already_saved'  => !empty($existing),
+            'existing_batch' => $existing,
+            'preview'        => $preview,
+        ]));
+    }
+
+    /**
+     * Phase 10: Salary Payable (Staff Finance Accounting Accruals & Clearance Register)
      */
     public function salary_payable()
     {
         $this->require_permission(array('finance.view'));
 
-        $this->render('pages/finance/placeholder', array(
-            'title'       => 'Salary Payable — Staff Finance',
-            'module_name' => 'Salary Payable',
-            'group_name'  => 'STAFF FINANCE',
-            'badge'       => 'NEW',
-            'description' => 'Approved salary payable liabilities, pending disbursements, and staff clearance registers.',
-            'page_key'    => 'finance_salary_payable',
-            'breadcrumb'  => array('Fee & Finance', 'Staff Finance', 'Salary Payable'),
+        
+        $selected_batch_id = (int)$this->input->get('batch_id');
+        $selected_year     = (int)$this->input->get('year');
+
+        $filters = [
+            'batch_id' => $selected_batch_id ?: null,
+            'year'     => $selected_year ?: null,
+        ];
+
+        $payable_data = $this->Finance_model->get_salary_payable_overview($this->school_id, $filters);
+
+        // Fetch detailed batch items if a specific batch is selected
+        $selected_batch = null;
+        $batch_items    = [];
+        if ($selected_batch_id > 0) {
+            $selected_batch = $this->Finance_model->get_payroll_batch($selected_batch_id, $this->school_id);
+            if ($selected_batch) {
+                $batch_items = $this->Finance_model->get_payroll_batch_items($selected_batch->id, $this->school_id);
+            }
+        }
+
+        $this->render('pages/finance/salary_payable', array(
+            'title'             => 'Salary Payable — Staff Finance',
+            'page_key'          => 'finance_salary_payable',
+            'breadcrumb'        => array('Fee & Finance', 'Staff Finance', 'Salary Payable'),
+            'batches'           => $payable_data['batches'],
+            'staff_payables'    => $payable_data['staff_payables'],
+            'total_payable'     => $payable_data['total_payable'],
+            'staff_count'       => $payable_data['staff_count'],
+            'selected_batch_id' => $selected_batch_id,
+            'selected_batch'    => $selected_batch,
+            'batch_items'       => $batch_items,
+            'selected_year'     => $selected_year,
         ));
     }
 
     /**
      * Submodule 2: Staff Payout / Salary Payment
      */
+    
     public function staff_payouts()
     {
         $this->require_permission(array('finance.staff_payouts.view', 'finance.expenses.view', 'finance.manage_expenses', 'finance.view'));
@@ -1438,7 +1858,45 @@ class Finance extends MY_Controller {
             $payment_mode         = trim($this->input->post('payment_method') ?: 'Bank Transfer');
             $reference_no         = trim($this->input->post('reference_no'));
             $description          = trim($this->input->post('remarks') ?: $this->input->post('description'));
+            $payroll_batch_id     = (int)$this->input->post('payroll_batch_id');
+            $payroll_item_id      = (int)$this->input->post('payroll_item_id');
 
+            // Phase 11: If Payout Type is Salary (Against Approved Salary Payable)
+            if ($payout_type === 'Salary') {
+                if (($staff_id <= 0 && $payroll_batch_id <= 0 && $payroll_item_id <= 0) || $amount <= 0 || $payment_account_id <= 0) {
+                    $this->session->set_flashdata('error', 'Please provide a Staff Member or Payroll Batch, Amount, and Disbursed From Account.');
+                    redirect('finance/staff_payouts');
+                    return;
+                }
+
+                $attachment = $this->_handle_attachment_upload('attachment');
+                $user_id    = $this->session->userdata('user_id');
+
+                $salary_data = array(
+                    'academic_year_id'   => $this->academic_year_id,
+                    'staff_id'           => $staff_id,
+                    'payroll_batch_id'   => $payroll_batch_id,
+                    'payroll_item_id'    => $payroll_item_id,
+                    'amount'             => $amount,
+                    'payment_account_id' => $payment_account_id,
+                    'payment_date'       => $expense_date,
+                    'payment_mode'       => $payment_mode,
+                    'reference_no'       => $reference_no,
+                    'description'        => $description,
+                    'attachment'         => $attachment,
+                );
+
+                $result = $this->Finance_model->process_salary_payment($salary_data, $this->school_id, $user_id);
+                if ($result['success']) {
+                    $this->session->set_flashdata('success', $result['message']);
+                } else {
+                    $this->session->set_flashdata('error', $result['message']);
+                }
+                redirect('finance/staff_payouts');
+                return;
+            }
+
+            // General Payout Flow (Advance, Bonus, Allowance, Reimbursement, Other)
             if ($staff_id <= 0 || $amount <= 0 || $payment_account_id <= 0) {
                 $this->session->set_flashdata('error', 'Please provide Staff Member, Amount, and Paid From Account.');
                 redirect('finance/staff_payouts');
@@ -1451,6 +1909,8 @@ class Finance extends MY_Controller {
                 redirect('finance/staff_payouts');
                 return;
             }
+
+            
 
             // Resolve default expense/liability account if not chosen
             if ($expense_account_id <= 0) {
@@ -1515,6 +1975,14 @@ class Finance extends MY_Controller {
         $cash_bank_accounts = $this->Finance_model->get_cash_and_bank_accounts($this->school_id);
         $expense_accounts   = $this->Finance_model->get_accounts_by_category('Expense', $this->school_id);
 
+        $pending_payables   = $this->Finance_model->get_pending_salary_payables($this->school_id);
+        $payroll_batches    = $this->Finance_model->get_payroll_batches($this->school_id);
+
+        $prefill_staff_id   = (int)$this->input->get('staff_id');
+        $prefill_batch_id   = (int)$this->input->get('batch_id');
+        $prefill_item_id    = (int)$this->input->get('item_id');
+        $action             = trim($this->input->get('action') ?? '');
+
         $this->render('pages/finance/staff_payouts', array(
             'title'              => 'Salary Payment — Staff Finance',
             'page_key'           => 'finance_exp_payout',
@@ -1524,8 +1992,43 @@ class Finance extends MY_Controller {
             'staff_members'      => $staff_members,
             'cash_bank_accounts' => $cash_bank_accounts,
             'expense_accounts'   => $expense_accounts,
+            'pending_payables'   => $pending_payables,
+            'payroll_batches'    => $payroll_batches,
+            'prefill_staff_id'   => $prefill_staff_id,
+            'prefill_batch_id'   => $prefill_batch_id,
+            'prefill_item_id'    => $prefill_item_id,
+            'action'             => $action,
             'filters'            => $filters,
         ));
+    }
+
+    /**
+     * AJAX endpoint: Get pending salary payables for staff or batch
+     */
+    public function ajax_pending_payables()
+    {
+        $this->require_permission(array('finance.staff_payouts.view', 'finance.expenses.view', 'finance.view'));
+        
+        $staff_id = (int)$this->input->get('staff_id');
+        $batch_id = (int)$this->input->get('batch_id');
+
+        $filters = [];
+        if ($staff_id > 0) $filters['staff_id'] = $staff_id;
+        if ($batch_id > 0) $filters['batch_id'] = $batch_id;
+
+        $items = $this->Finance_model->get_pending_salary_payables($this->school_id, $filters);
+
+        $total_due = 0.00;
+        foreach ($items as $it) {
+            $total_due += (float)$it->due_amount;
+        }
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'success'   => true,
+            'items'     => $items,
+            'total_due' => round($total_due, 2),
+            'count'     => count($items)
+        ]));
     }
 
     /**
@@ -2616,7 +3119,8 @@ class Finance extends MY_Controller {
                     $student_ids,
                     $fee_structure_id,
                     $due_date,
-                    $this->user_id
+                    $this->user_id,
+                    $assignment_mode
                 );
                 if ($res['success']) {
                     $this->session->set_flashdata('success', $res['message']);
@@ -2666,6 +3170,95 @@ class Finance extends MY_Controller {
                         'success'  => true,
                         'students' => $students
                     ]));
+    }
+
+    /**
+     * AJAX endpoint to check if a fee structure is already assigned to a student
+     */
+    public function check_fee_assignment_ajax()
+    {
+        $this->require_permission('finance.fees.assign');
+        $student_id = (int)$this->input->get('student_id');
+        $fee_structure_id = (int)$this->input->get('fee_structure_id');
+
+        if ($student_id <= 0 || $fee_structure_id <= 0) {
+            return $this->output->set_content_type('application/json')->set_output(json_encode([
+                'assigned' => false
+            ]));
+        }
+
+        $existing = $this->Finance_model->check_student_fee_assignment(
+            $this->school_id,
+            $this->academic_year_id,
+            $student_id,
+            $fee_structure_id
+        );
+
+        return $this->output->set_content_type('application/json')->set_output(json_encode([
+            'assigned' => !empty($existing),
+            'details'  => $existing ?: null
+        ]));
+    }
+
+    /**
+     * AJAX endpoint to search students for Fee Collection by ID, Name, Class, or Admission No.
+     */
+    public function search_students_collection_ajax()
+    {
+        $this->require_permission('finance.fees.collect');
+        $query    = trim($this->input->get('query') ?? '');
+        $class_id = (int)$this->input->get('class_id');
+
+        $this->db->select('s.student_id, s.first_name, s.last_name, s.admission_number, s.roll_number, s.class_id, c.class_name, d.division_name')
+                 ->from('tbl_students s')
+                 ->join('tbl_classes c', 'c.class_id = s.class_id', 'left')
+                 ->join('tbl_divisions d', 'd.division_id = s.division_id', 'left')
+                 ->where('s.school_id', $this->school_id)
+                 ->where('s.is_deleted', 'n')
+                 ->where('s.status', 1);
+
+        if ($class_id > 0) {
+            $this->db->where('s.class_id', $class_id);
+        }
+
+        if (!empty($query)) {
+            $this->db->group_start();
+            if (is_numeric($query)) {
+                $this->db->where('s.student_id', (int)$query);
+                $this->db->or_like('s.admission_number', $query);
+                $this->db->or_like('s.roll_number', $query);
+            } else {
+                $this->db->like('s.admission_number', $query)
+                         ->or_like('s.first_name', $query)
+                         ->or_like('s.last_name', $query)
+                         ->or_like("CONCAT(s.first_name, ' ', s.last_name)", $query)
+                         ->or_like('c.class_name', $query);
+            }
+            $this->db->group_end();
+        }
+
+        $students = $this->db->order_by('s.first_name ASC, s.last_name ASC')
+                             ->limit(30)
+                             ->get()->result();
+
+        // Calculate pending due count & total due for each student
+        foreach ($students as $stu) {
+            
+            $due_data = $this->db->select('SUM(due_amount) as total_due, COUNT(id) as pending_invoices')
+                                 ->where('school_id', $this->school_id)
+                                 ->where('student_id', (int)$stu->student_id)
+                                 ->where('is_deleted', 'n')
+                                 ->where('status !=', 'Paid')
+                                 ->get('tbl_finance_fee_assignments')->row();
+
+            $stu->total_due = $due_data ? (float)($due_data->total_due ?? 0) : 0.00;
+            $stu->pending_invoices = $due_data ? (int)($due_data->pending_invoices ?? 0) : 0;
+        }
+
+        return $this->output->set_content_type('application/json')->set_output(json_encode([
+            'success'  => true,
+            'students' => $students
+        ]));
     }
 
     /**
@@ -2886,6 +3479,8 @@ class Finance extends MY_Controller {
 
         $student_id = (int)$this->input->get('student_id');
         $assignment_id = (int)$this->input->get('assignment_id');
+        $search_query = trim($this->input->get('search') ?? '');
+        $admission_no = trim($this->input->get('admission_no') ?? '');
 
         // If assignment_id is passed but student_id not specified, find student from assignment
         if ($assignment_id > 0 && $student_id <= 0) {
@@ -2896,6 +3491,49 @@ class Finance extends MY_Controller {
                                   ->get('tbl_finance_fee_assignments')->row();
             if ($fa_record) {
                 $student_id = (int)$fa_record->student_id;
+            }
+        }
+
+        // Direct search resolution: Student ID, Admission No., or Name
+        if ($student_id <= 0) {
+            $term = !empty($admission_no) ? $admission_no : $search_query;
+            if (!empty($term)) {
+                // 1. Try numeric Student ID
+                if (is_numeric($term)) {
+                    $chk_stu = $this->Student_model->get_by_id((int)$term, $this->school_id);
+                    if ($chk_stu) {
+                        $student_id = (int)$chk_stu->student_id;
+                    }
+                }
+                // 2. Try exact Admission Number match
+                if ($student_id <= 0) {
+                    $adm_row = $this->db->select('student_id')
+                                        ->where('school_id', $this->school_id)
+                                        ->where('is_deleted', 'n')
+                                        ->where('admission_number', $term)
+                                        ->get('tbl_students')->row();
+                    if ($adm_row) {
+                        $student_id = (int)$adm_row->student_id;
+                    }
+                }
+                // 3. Try unique partial admission number or full name match
+                if ($student_id <= 0) {
+                    $matches = $this->db->select('student_id')
+                                        ->where('school_id', $this->school_id)
+                                        ->where('is_deleted', 'n')
+                                        ->where('status', 1)
+                                        ->group_start()
+                                            ->like('admission_number', $term)
+                                            ->or_like('first_name', $term)
+                                            ->or_like('last_name', $term)
+                                            ->or_like("CONCAT(first_name, ' ', last_name)", $term)
+                                        ->group_end()
+                                        ->limit(2)
+                                        ->get('tbl_students')->result();
+                    if (count($matches) === 1) {
+                        $student_id = (int)$matches[0]->student_id;
+                    }
+                }
             }
         }
 
@@ -2944,6 +3582,9 @@ class Finance extends MY_Controller {
 
         $recent_collections = $this->Finance_model->get_fee_collections($this->school_id, $this->academic_year_id);
 
+        $this->load->model('Class_model');
+        $classes = $this->Class_model->get_all(['school_id' => $this->school_id, 'is_deleted' => 'n']);
+
         $this->render('pages/finance/fee_collection', [
             'title'                  => 'Fee Collection — Student Finance',
             'page_key'               => 'finance_fee_collection',
@@ -2956,6 +3597,8 @@ class Finance extends MY_Controller {
             'bank_accounts'          => $bank_accounts,
             'selected_assignment_id' => $assignment_id,
             'recent_collections'     => array_slice($recent_collections, 0, 10),
+            'classes'                => $classes,
+            'search_query'           => $search_query,
         ]);
     }
 

@@ -31,24 +31,96 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       <!-- Collection Form Card -->
       <div class="lg:col-span-2 elevation-1 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 p-6">
-        <h3 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
-          <span class="material-symbols-outlined text-secondary text-[22px]">add_card</span>Record Payment
-        </h3>
-        <form method="post" action="<?php echo site_url('finance/fee_collection'); ?>">
+        <div class="flex items-center justify-between pb-3 mb-4 border-b border-outline-variant/40">
+          <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary text-[22px]">add_card</span>Record Payment
+          </h3>
+          <span class="text-xs text-on-surface-variant font-medium">Fee Collection</span>
+        </div>
+
+        <!-- Collection by Search Section -->
+        <div class="mb-5 p-4 rounded-xl bg-surface-container-low/70 border border-outline-variant/50">
+          <div class="flex items-center justify-between mb-2.5">
+            <label class="block text-label-md font-semibold text-on-surface flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-primary text-[20px]">person_search</span>
+              Collection by Search
+            </label>
+            <span class="text-[11px] text-on-surface-variant">Search by Student ID, Name, Class, or Admission No.</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 relative">
+            <!-- Filter by Class -->
+            <div class="sm:col-span-4">
+              <select id="search_class_id" onchange="triggerSearch(true)" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
+                <option value="">-- All Classes --</option>
+                <?php if (!empty($classes)): ?>
+                  <?php foreach ($classes as $c): ?>
+                    <option value="<?php echo (int)$c->class_id; ?>" <?php echo (!empty($student) && (int)$student->class_id === (int)$c->class_id) ? 'selected' : ''; ?>>
+                      <?php echo html_escape($c->class_name); ?>
+                    </option>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </select>
+            </div>
+
+            <!-- Search by Name, Adm No, or Student ID -->
+            <div class="sm:col-span-6 relative">
+              <span class="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-on-surface-variant pointer-events-none">search</span>
+              <input type="text" id="student_search_query" onkeyup="handleSearchKeyup(event)" value="<?php echo !empty($student) ? html_escape($student->first_name . ' ' . $student->last_name . ' (' . ($student->admission_number ?? $student->admission_no ?? '') . ')') : html_escape($search_query ?? ''); ?>" placeholder="Type Name, Adm # (e.g. SCH...), or ID..." class="w-full pl-9 pr-8 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
+              <button type="button" id="btnClearSearch" onclick="clearSearchInput()" class="<?php echo (empty($student) && empty($search_query)) ? 'hidden' : ''; ?> absolute right-2.5 top-2.5 text-on-surface-variant hover:text-on-surface cursor-pointer">
+                <span class="material-symbols-outlined text-[16px]">cancel</span>
+              </button>
+            </div>
+
+            <!-- Search / Find Button -->
+            <div class="sm:col-span-2">
+              <button type="button" onclick="triggerSearch(true)" class="w-full py-2 px-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 text-label-md font-semibold cursor-pointer flex items-center justify-center gap-1 shadow-xs transition-colors">
+                <span class="material-symbols-outlined text-[18px]">search</span>Search
+              </button>
+            </div>
+          </div>
+
+          <!-- Dynamic Search Results Dropdown -->
+          <div id="searchResultsDropdown" class="hidden mt-2 max-h-64 overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-xl divide-y divide-outline-variant/30">
+            <!-- Populated via AJAX -->
+          </div>
+        </div>
+
+        <form method="post" action="<?php echo site_url('finance/fee_collection'); ?>" id="feeCollectionForm">
+          <input type="hidden" name="student_id" id="coll_student_id" required value="<?php echo !empty($student) ? (int)$student->student_id : ''; ?>">
+
           <div class="space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Target Student Status Badge -->
               <div>
-                <label class="block text-label-md font-semibold text-on-surface mb-1">Student ID / Admission No <span class="text-error">*</span></label>
-                <div class="flex gap-2">
-                  <input type="number" name="student_id" id="coll_student_id" required value="<?php echo !empty($student) ? (int)$student->student_id : ''; ?>" placeholder="Enter Student ID" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
-                  <button type="button" onclick="loadStudentFeeData()" class="px-3.5 py-2 rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant text-label-md font-semibold text-on-surface cursor-pointer shrink-0 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[18px]">search</span>Load
-                  </button>
-                </div>
+                <label class="block text-label-md font-semibold text-on-surface mb-1">Target Student <span class="text-error">*</span></label>
                 <?php if (!empty($student)): ?>
-                  <div class="text-xs text-secondary font-semibold mt-1">Student: <?php echo html_escape($student->first_name . ' ' . $student->last_name . ' (' . ($student->admission_number ?? $student->admission_no ?? '') . ')'); ?></div>
+                  <div class="p-2.5 rounded-lg bg-secondary/10 border border-secondary/30 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="material-symbols-outlined text-secondary text-[22px]">account_circle</span>
+                      <div>
+                        <div class="font-bold text-on-surface text-body-sm"><?php echo html_escape($student->first_name . ' ' . $student->last_name); ?></div>
+                        <div class="text-[11px] text-on-surface-variant font-mono">
+                          Adm: <?php echo html_escape($student->admission_number ?? $student->admission_no ?? '—'); ?> &bull; 
+                          Class: <?php echo html_escape(($student->class_name ?? '') . (!empty($student->division_name) ? ' - ' . $student->division_name : '')); ?> &bull; 
+                          ID: <span class="text-primary font-bold">#<?php echo (int)$student->student_id; ?></span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" onclick="focusSearchInput()" class="text-xs text-primary hover:underline font-semibold cursor-pointer">Change</button>
+                  </div>
+                <?php else: ?>
+                  <div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-amber-600 text-[18px]">info</span>
+                      No student selected. Use search above.
+                    </span>
+                    <button type="button" onclick="focusSearchInput()" class="text-xs text-primary font-bold hover:underline cursor-pointer">Search Now</button>
+                  </div>
                 <?php endif; ?>
               </div>
+
+              <!-- Linked Invoice Dropdown -->
               <div>
                 <label class="block text-label-md font-semibold text-on-surface mb-1">Linked Invoice (Optional)</label>
                 <select name="fee_assignment_id" id="coll_fee_assignment_id" class="w-full px-3 py-2 border border-outline rounded-lg text-on-surface bg-surface text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-hidden">
@@ -283,12 +355,139 @@
     </div>
 
     <script>
-    function loadStudentFeeData() {
-      var sid = document.getElementById('coll_student_id').value;
-      if (sid) {
-        window.location.href = '<?php echo site_url("finance/fee_collection"); ?>?student_id=' + encodeURIComponent(sid);
+    let searchTimer = null;
+
+    function handleSearchKeyup(e) {
+      const clearBtn = document.getElementById('btnClearSearch');
+      const input = document.getElementById('student_search_query');
+      if (clearBtn && input) {
+        if (input.value.trim().length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+
+      if (e.key === 'Enter') {
+        triggerSearch(true);
+        return;
+      }
+
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        triggerSearch(false);
+      }, 300);
+    }
+
+    function clearSearchInput() {
+      const input = document.getElementById('student_search_query');
+      const clearBtn = document.getElementById('btnClearSearch');
+      if (input) input.value = '';
+      if (clearBtn) clearBtn.classList.add('hidden');
+      const dd = document.getElementById('searchResultsDropdown');
+      if (dd) dd.classList.add('hidden');
+      if (input) input.focus();
+    }
+
+    function focusSearchInput() {
+      const input = document.getElementById('student_search_query');
+      if (input) {
+        input.focus();
+        input.select();
       }
     }
+
+    function triggerSearch(immediate) {
+      const input = document.getElementById('student_search_query');
+      const classSelect = document.getElementById('search_class_id');
+      const dropdown = document.getElementById('searchResultsDropdown');
+      if (!input || !dropdown) return;
+
+      const query = input.value.trim();
+      const classId = classSelect ? classSelect.value : '';
+
+      // If user hit Enter or clicked Search with exact numeric ID, check if single direct load
+      if (immediate && isExactNumericId(query)) {
+        selectStudent(query);
+        return;
+      }
+
+      // If both query and class are empty, hide dropdown
+      if (!query && !classId) {
+        dropdown.classList.add('hidden');
+        return;
+      }
+
+      dropdown.innerHTML = '<div class="p-3 text-center text-on-surface-variant text-xs flex items-center justify-center gap-1.5"><span class="material-symbols-outlined text-[16px] animate-spin">refresh</span>Searching students...</div>';
+      dropdown.classList.remove('hidden');
+
+      fetch('<?php echo site_url("finance/search_students_collection_ajax"); ?>?query=' + encodeURIComponent(query) + '&class_id=' + encodeURIComponent(classId))
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.students && data.students.length > 0) {
+            // If immediate search and exactly 1 result returned with a typed query, auto-select
+            if (immediate && data.students.length === 1 && query) {
+              selectStudent(data.students[0].student_id);
+              return;
+            }
+
+            let html = '';
+            data.students.forEach(st => {
+              const duesBadge = (parseFloat(st.total_due) > 0)
+                ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-error-container text-on-error-container">₹${parseFloat(st.total_due).toFixed(2)} Due</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-secondary/10 text-secondary">No Dues</span>`;
+
+              const rollStr = st.roll_number ? ` &bull; Roll: ${st.roll_number}` : '';
+              const secStr = st.division_name ? ` - ${st.division_name}` : '';
+
+              html += `
+                <div onclick="selectStudent(${st.student_id})" class="p-3 hover:bg-surface-container-high transition-colors cursor-pointer flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-primary text-[22px]">account_circle</span>
+                    <div>
+                      <div class="font-bold text-on-surface text-body-sm">${st.first_name} ${st.last_name}</div>
+                      <div class="text-[11px] text-on-surface-variant font-mono">
+                        Adm: <strong class="text-on-surface">${st.admission_number || '—'}</strong> &bull; 
+                        Class: <strong class="text-on-surface">${st.class_name || 'General'}${secStr}</strong>${rollStr} &bull; 
+                        <span class="text-primary font-semibold">ID: #${st.student_id}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0 flex items-center gap-2">
+                    ${duesBadge}
+                    <span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+                  </div>
+                </div>
+              `;
+            });
+            dropdown.innerHTML = html;
+          } else {
+            dropdown.innerHTML = '<div class="p-4 text-center text-on-surface-variant text-xs">No matching students found for the given criteria.</div>';
+          }
+        })
+        .catch(err => {
+          console.error('Search error:', err);
+          dropdown.innerHTML = '<div class="p-3 text-center text-error text-xs">Failed to fetch search results.</div>';
+        });
+    }
+
+    function isExactNumericId(str) {
+      return /^\d+$/.test(str);
+    }
+
+    function selectStudent(studentId) {
+      window.location.href = '<?php echo site_url("finance/fee_collection"); ?>?student_id=' + encodeURIComponent(studentId);
+    }
+
+    // Close search dropdown on outside click
+    document.addEventListener('click', function(e) {
+      const dropdown = document.getElementById('searchResultsDropdown');
+      const input = document.getElementById('student_search_query');
+      const classSelect = document.getElementById('search_class_id');
+      if (dropdown && !dropdown.contains(e.target) && e.target !== input && e.target !== classSelect) {
+        dropdown.classList.add('hidden');
+      }
+    });
 
     function onDepositAccountChange() {
       var accSelect = document.getElementById('coll_deposit_account_id');

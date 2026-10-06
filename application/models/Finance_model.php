@@ -1061,8 +1061,8 @@ class Finance_model extends CI_Model {
             d.division_name,
             a.account_name as control_account_name,
             a.account_code as control_account_code,
-            COALESCE(SUM(ti.debit),0) as total_debit,
-            COALESCE(SUM(ti.credit),0) as total_credit
+            COALESCE(SUM(CASE WHEN t.id IS NOT NULL THEN ti.debit ELSE 0 END),0) as total_debit,
+            COALESCE(SUM(CASE WHEN t.id IS NOT NULL THEN ti.credit ELSE 0 END),0) as total_credit
         ')
         ->from('tbl_finance_ledgers l')
         ->join('tbl_students s', 's.student_id = l.entity_id', 'left')
@@ -1482,7 +1482,7 @@ class Finance_model extends CI_Model {
             $opening = ($opening_type === 'Debit') ? $base_opening : -$base_opening;
         }
 
-        $query = $this->db->select('ti.*, t.transaction_number, t.transaction_date, t.transaction_type, t.description as tx_desc, t.reference_type, t.reference_id, a.account_name, u.name as created_by_name')
+        $query = $this->db->select('ti.*, t.transaction_number, t.transaction_date, t.transaction_type, t.description as tx_desc, t.reference_no, t.reference_type, t.reference_id, a.account_name, u.name as created_by_name')
                            ->from('tbl_finance_transaction_items ti')
                            ->join('tbl_finance_transactions t', 't.id = ti.transaction_id', 'inner')
                            ->join('tbl_finance_accounts a', 'a.id = ti.account_id', 'inner')
@@ -1511,6 +1511,7 @@ class Finance_model extends CI_Model {
             'ledger'          => $ledger,
             'opening_balance' => $opening,
             'lines'           => $lines,
+            'entries'         => $lines,
             'total_debit'     => round($total_debit, 2),
             'total_credit'    => round($total_credit, 2),
             'closing_balance' => $running,
@@ -3918,8 +3919,11 @@ class Finance_model extends CI_Model {
             'ledger'          => $ledger,
             'opening_balance' => $opening,
             'lines'           => $lines,
+            'entries'         => $lines,
             'total_invoiced'  => round($total_invoiced, 2),
             'total_paid'      => round($total_paid, 2),
+            'total_debit'     => round($total_invoiced, 2),
+            'total_credit'    => round($total_paid, 2),
             'closing_balance' => $running
         ];
     }
@@ -4261,13 +4265,88 @@ class Finance_model extends CI_Model {
         return $this->db->order_by('fa.id', 'DESC')->get()->result();
     }
 
-    public function assign_fee_structure_to_students($school_id, $academic_year_id, $student_ids, $fee_structure_id, $due_date, $created_by = null)
+    /**
+     * Check if a specific student already has a fee structure assigned
+     */
+    public function check_student_fee_assignment($school_id, $academic_year_id, $student_id, $fee_structure_id)
+    {
+        $this->db->select('fa.id, fa.invoice_number, fa.invoice_date, fa.due_date, fa.assigned_amount, fa.due_amount, fa.status, fs.structure_name')
+                 ->from('tbl_finance_fee_assignments fa')
+                 ->join('tbl_finance_fee_structures fs', 'fs.id = fa.fee_structure_id', 'left')
+                 ->where('fa.school_id', (int)$school_id)
+                 ->where('fa.student_id', (int)$student_id)
+                 ->where('fa.fee_structure_id', (int)$fee_structure_id)
+                 ->where('fa.is_deleted', 'n');
+        if ($academic_year_id) {
+            $this->db->where('fa.academic_year_id', (int)$academic_year_id);
+        }
+        return $this->db->get()->row();
+    }
+
+    public function assign_fee_structure_to_students($school_id, $academic_year_id, $student_ids, $fee_structure_id, $due_date, $created_by = null, $assignment_mode = 'bulk')
     {
         $school_id = (int)$school_id;
         $academic_year_id = (int)$academic_year_id;
         $struct = $this->get_fee_structure_by_id($fee_structure_id, $school_id);
         if (!$struct) {
             return ['success' => false, 'message' => 'Fee structure not found.'];
+        }
+
+        // Clean & ensure valid student IDs
+        $student_ids = array_values(array_filter(array_map('intval', (array)$student_ids), function($id) { return $id > 0; }));
+        if (empty($student_ids)) {
+            return ['success' => false, 'message' => 'No valid students selected for fee assignment.'];
+        }
+
+        // ---------------------------------------------------------------------
+        // Check for existing assignments to prevent duplicates
+        // ---------------------------------------------------------------------
+        $this->db->select('fa.id, fa.student_id, fa.invoice_number, fa.status, s.first_name, s.last_name, s.admission_number')
+                 ->from('tbl_finance_fee_assignments fa')
+                 ->join('tbl_students s', 's.student_id = fa.student_id', 'left')
+                 ->where('fa.school_id', $school_id)
+                 ->where('fa.fee_structure_id', (int)$fee_structure_id)
+                 ->where('fa.is_deleted', 'n')
+                 ->where_in('fa.student_id', $student_ids);
+        if ($academic_year_id > 0) {
+            $this->db->where('fa.academic_year_id', $academic_year_id);
+        }
+        $existing_assignments = $this->db->get()->result();
+
+        $already_assigned_map = [];
+        foreach ($existing_assignments as $exist) {
+            $already_assigned_map[(int)$exist->student_id] = $exist;
+        }
+
+        // Handle Individual Assignment mode or single student selection
+        if ($assignment_mode === 'individual' || count($student_ids) === 1) {
+            $target_id = $student_ids[0];
+            if (isset($already_assigned_map[$target_id])) {
+                $dup = $already_assigned_map[$target_id];
+                $stu_name = trim(($dup->first_name ?? '') . ' ' . ($dup->last_name ?? ''));
+                $adm = !empty($dup->admission_number) ? " (Adm: {$dup->admission_number})" : "";
+                return [
+                    'success'      => false,
+                    'is_duplicate' => true,
+                    'message'      => "Fee structure '{$struct->structure_name}' is already assigned to {$stu_name}{$adm} under Invoice {$dup->invoice_number}. Duplicate assignment is not allowed."
+                ];
+            }
+        }
+
+        // Filter out already assigned students for bulk mode
+        $pending_student_ids = [];
+        foreach ($student_ids as $sid) {
+            if (!isset($already_assigned_map[$sid])) {
+                $pending_student_ids[] = $sid;
+            }
+        }
+
+        if (empty($pending_student_ids)) {
+            return [
+                'success'      => false,
+                'is_duplicate' => true,
+                'message'      => "All selected student(s) already have fee structure '{$struct->structure_name}' assigned. Duplicate fee assignment was prevented."
+            ];
         }
 
         $type = $this->get_fee_type_by_id($struct->fee_type_id, $school_id);
@@ -4300,7 +4379,7 @@ class Finance_model extends CI_Model {
         $this->db->trans_begin();
 
         try {
-            foreach ($student_ids as $stu_id) {
+            foreach ($pending_student_ids as $stu_id) {
                 $stu_id = (int)$stu_id;
                 if ($stu_id <= 0) continue;
 
@@ -4396,7 +4475,12 @@ class Finance_model extends CI_Model {
             }
 
             $this->db->trans_commit();
-            return ['success' => true, 'count' => $assigned_count, 'message' => "Successfully assigned fee to {$assigned_count} student(s)."];
+            $skipped_count = count($already_assigned_map);
+            $message = "Successfully assigned fee to {$assigned_count} student(s).";
+            if ($skipped_count > 0) {
+                $message .= " ({$skipped_count} student(s) were skipped as this fee is already assigned to them).";
+            }
+            return ['success' => true, 'count' => $assigned_count, 'skipped' => $skipped_count, 'message' => $message];
         } catch (\Exception $e) {
             $this->db->trans_rollback();
             return ['success' => false, 'message' => $e->getMessage()];
@@ -4641,5 +4725,1300 @@ class Finance_model extends CI_Model {
 
         return $this->db->order_by('fa.due_date', 'ASC')->get()->result();
     }
+
+    // =========================================================================
+    // 14. STAFF FINANCE FOUNDATION (Salary Structures & Components)
+    // =========================================================================
+
+    /**
+     * Get list of salary components for a school (optionally filtered by Earning/Deduction).
+     */
+    public function get_salary_components($school_id, $type = null)
+    {
+        $school_id = (int)$school_id;
+        $this->db->where('school_id', $school_id)
+                 ->where('is_deleted', 'n');
+        if (!empty($type)) {
+            $this->db->where('component_type', $type);
+        }
+        return $this->db->order_by('component_type', 'ASC')
+                        ->order_by('id', 'ASC')
+                        ->get('tbl_finance_salary_components')
+                        ->result();
+    }
+
+    /**
+     * Get single salary component.
+     */
+    public function get_salary_component($id, $school_id)
+    {
+        return $this->db->where('id', (int)$id)
+                        ->where('school_id', (int)$school_id)
+                        ->where('is_deleted', 'n')
+                        ->get('tbl_finance_salary_components')
+                        ->row();
+    }
+
+    /**
+     * Create or update salary component.
+     */
+    public function save_salary_component($data, $school_id)
+    {
+        $school_id = (int)$school_id;
+        $id = !empty($data['id']) ? (int)$data['id'] : null;
+
+        $record = [
+            'school_id'        => $school_id,
+            'component_name'   => trim($data['component_name'] ?? ''),
+            'component_code'   => strtoupper(trim($data['component_code'] ?? '')),
+            'component_type'   => in_array($data['component_type'] ?? '', ['Earning', 'Deduction']) ? $data['component_type'] : 'Earning',
+            'deduction_payer'  => in_array($data['deduction_payer'] ?? '', ['Employee', 'Employer']) ? $data['deduction_payer'] : 'Employee',
+            'description'      => trim($data['description'] ?? ''),
+            'is_taxable'       => !empty($data['is_taxable']) ? 1 : 0,
+            'default_amount'   => (float)($data['default_amount'] ?? 0),
+            'calculation_type' => in_array($data['calculation_type'] ?? '', ['Fixed', 'Percentage']) ? $data['calculation_type'] : 'Fixed',
+            'percentage_value' => (float)($data['percentage_value'] ?? 0),
+            'status'           => isset($data['status']) ? (int)$data['status'] : 1,
+            'updated_at'       => date('Y-m-d H:i:s'),
+        ];
+
+        if ($id) {
+            $this->db->where('id', $id)
+                     ->where('school_id', $school_id)
+                     ->update('tbl_finance_salary_components', $record);
+            return $id;
+        } else {
+            $record['created_at'] = date('Y-m-d H:i:s');
+            $this->db->insert('tbl_finance_salary_components', $record);
+            return $this->db->insert_id();
+        }
+    }
+
+    /**
+     * Soft delete salary component.
+     */
+    public function delete_salary_component($id, $school_id)
+    {
+        return $this->db->where('id', (int)$id)
+                        ->where('school_id', (int)$school_id)
+                        ->update('tbl_finance_salary_components', [
+                            'is_deleted' => 'y',
+                            'status'     => 0,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ]);
+    }
+
+    /**
+     * Get salary structures with staff details.
+     */
+    public function get_salary_structures($school_id, $filters = [])
+    {
+        $school_id = (int)$school_id;
+        $this->db->select('ss.*, sf.employee_code, sf.full_name, sf.staff_type, sf.email, sf.phone, sf.salary as base_profile_salary, d.designation_name')
+                 ->from('tbl_finance_salary_structures ss')
+                 ->join('tbl_staff sf', 'sf.staff_id = ss.staff_id', 'inner')
+                 ->join('tbl_designations d', 'd.designation_id = sf.designation_id', 'left')
+                 ->where('ss.school_id', $school_id)
+                 ->where('ss.is_deleted', 'n')
+                 ->where('sf.is_deleted', 'n');
+
+        if (!empty($filters['staff_type'])) {
+            $this->db->where('sf.staff_type', $filters['staff_type']);
+        }
+        if (isset($filters['status']) && $filters['status'] !== '') {
+            $this->db->where('ss.status', (int)$filters['status']);
+        }
+        if (!empty($filters['search'])) {
+            $s = trim($filters['search']);
+            $this->db->group_start()
+                     ->like('sf.full_name', $s)
+                     ->or_like('sf.employee_code', $s)
+                     ->or_like('ss.structure_name', $s)
+                     ->group_end();
+        }
+
+        return $this->db->order_by('ss.status', 'DESC')
+                        ->order_by('sf.full_name', 'ASC')
+                        ->get()->result();
+    }
+
+    /**
+     * Get single salary structure by ID with staff info.
+     */
+    public function get_salary_structure($id, $school_id)
+    {
+        return $this->db->select('ss.*, sf.employee_code, sf.full_name, sf.staff_type, sf.email, sf.phone, sf.salary as base_profile_salary, d.designation_name')
+                        ->from('tbl_finance_salary_structures ss')
+                        ->join('tbl_staff sf', 'sf.staff_id = ss.staff_id', 'inner')
+                        ->join('tbl_designations d', 'd.designation_id = sf.designation_id', 'left')
+                        ->where('ss.id', (int)$id)
+                        ->where('ss.school_id', (int)$school_id)
+                        ->where('ss.is_deleted', 'n')
+                        ->get()->row();
+    }
+
+    /**
+     * Get active salary structure for a specific staff member.
+     */
+    public function get_salary_structure_by_staff($staff_id, $school_id)
+    {
+        return $this->db->select('ss.*, sf.employee_code, sf.full_name, sf.staff_type, d.designation_name')
+                        ->from('tbl_finance_salary_structures ss')
+                        ->join('tbl_staff sf', 'sf.staff_id = ss.staff_id', 'inner')
+                        ->join('tbl_designations d', 'd.designation_id = sf.designation_id', 'left')
+                        ->where('ss.staff_id', (int)$staff_id)
+                        ->where('ss.school_id', (int)$school_id)
+                        ->where('ss.status', 1)
+                        ->where('ss.is_deleted', 'n')
+                        ->order_by('ss.effective_from', 'DESC')
+                        ->limit(1)
+                        ->get()->row();
+    }
+
+    /**
+     * Get line items for a salary structure.
+     */
+    public function get_salary_structure_items($structure_id)
+    {
+        return $this->db->where('structure_id', (int)$structure_id)
+                        ->order_by('component_type', 'ASC') // Earnings first, then Deductions
+                        ->order_by('sort_order', 'ASC')
+                        ->order_by('id', 'ASC')
+                        ->get('tbl_finance_salary_structure_items')
+                        ->result();
+    }
+
+    /**
+     * Save salary structure with items in a transaction.
+     */
+    public function save_salary_structure($header_data, $items_data, $school_id)
+    {
+        $school_id = (int)$school_id;
+        $id = !empty($header_data['id']) ? (int)$header_data['id'] : null;
+        $staff_id = (int)$header_data['staff_id'];
+
+        // Calculate totals from items
+        // Gross = sum of Earnings
+        // Employee Deductions = sum of Deductions where deduction_payer != 'Employer'
+        // Employer Contributions = sum of Deductions where deduction_payer == 'Employer'
+        $gross = 0.00;
+        $deductions = 0.00;
+        $employer_contrib = 0.00;
+
+        foreach ($items_data as $itm) {
+            $amt = (float)($itm['amount'] ?? 0);
+            $type = $itm['component_type'] ?? 'Earning';
+            $payer = $itm['deduction_payer'] ?? 'Employee';
+
+            if ($type === 'Deduction') {
+                if ($payer === 'Employer') {
+                    $employer_contrib += $amt;
+                } else {
+                    $deductions += $amt;
+                }
+            } else {
+                $gross += $amt;
+            }
+        }
+        $net = round($gross - $deductions, 2);
+
+        $this->db->trans_start();
+
+        $header = [
+            'school_id'              => $school_id,
+            'staff_id'               => $staff_id,
+            'structure_name'         => trim($header_data['structure_name'] ?? 'Salary Structure'),
+            'effective_from'         => !empty($header_data['effective_from']) ? $header_data['effective_from'] : date('Y-m-d'),
+            'effective_to'           => !empty($header_data['effective_to']) ? $header_data['effective_to'] : null,
+            'gross_salary'           => round($gross, 2),
+            'total_deductions'       => round($deductions, 2),
+            'employer_contributions' => round($employer_contrib, 2),
+            'net_salary'             => $net,
+            'pay_frequency'          => $header_data['pay_frequency'] ?? 'Monthly',
+            'remarks'                => trim($header_data['remarks'] ?? ''),
+            'status'                 => isset($header_data['status']) ? (int)$header_data['status'] : 1,
+            'updated_at'             => date('Y-m-d H:i:s'),
+        ];
+
+        // If this structure is marked Active (status=1), deactivate previous active structures for this staff
+        if ($header['status'] == 1) {
+            $this->db->where('staff_id', $staff_id)
+                     ->where('school_id', $school_id);
+            if ($id) {
+                $this->db->where('id !=', $id);
+            }
+            $this->db->update('tbl_finance_salary_structures', ['status' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+
+        if ($id) {
+            $this->db->where('id', $id)
+                     ->where('school_id', $school_id)
+                     ->update('tbl_finance_salary_structures', $header);
+            $structure_id = $id;
+
+            // Delete old items to replace cleanly
+            $this->db->where('structure_id', $structure_id)->delete('tbl_finance_salary_structure_items');
+        } else {
+            $header['created_at'] = date('Y-m-d H:i:s');
+            $this->db->insert('tbl_finance_salary_structures', $header);
+            $structure_id = $this->db->insert_id();
+        }
+
+        // Insert line items
+        $sort = 1;
+        foreach ($items_data as $itm) {
+            $item_record = [
+                'structure_id'     => $structure_id,
+                'component_id'     => !empty($itm['component_id']) ? (int)$itm['component_id'] : null,
+                'component_name'   => trim($itm['component_name'] ?? 'Component'),
+                'component_type'   => ($itm['component_type'] === 'Deduction') ? 'Deduction' : 'Earning',
+                'deduction_payer'  => ($itm['deduction_payer'] === 'Employer') ? 'Employer' : 'Employee',
+                'calculation_type' => ($itm['calculation_type'] === 'Percentage') ? 'Percentage' : 'Fixed',
+                'percentage'       => (float)($itm['percentage'] ?? 0),
+                'amount'           => (float)($itm['amount'] ?? 0),
+                'sort_order'       => $sort++,
+                'created_at'       => date('Y-m-d H:i:s'),
+            ];
+            $this->db->insert('tbl_finance_salary_structure_items', $item_record);
+        }
+
+        // Sync staff baseline monthly salary if structure is active
+        if ($header['status'] == 1 && $gross > 0) {
+            $this->db->where('staff_id', $staff_id)
+                     ->where('school_id', $school_id)
+                     ->update('tbl_staff', ['salary' => round($gross, 2), 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+
+        $this->db->trans_complete();
+
+        return $this->db->trans_status() ? $structure_id : false;
+    }
+
+    /**
+     * Soft delete salary structure.
+     */
+    public function delete_salary_structure($id, $school_id)
+    {
+        return $this->db->where('id', (int)$id)
+                        ->where('school_id', (int)$school_id)
+                        ->update('tbl_finance_salary_structures', [
+                            'is_deleted' => 'y',
+                            'status'     => 0,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 9: Monthly Staff Payroll Processing Engine
+    // -------------------------------------------------------------------------
+
+    /**
+     * Check if payroll batch already exists for month/year.
+     */
+    public function get_payroll_batch_by_period($school_id, $month, $year)
+    {
+        return $this->db->where('school_id', (int)$school_id)
+                        ->where('payroll_month', (int)$month)
+                        ->where('payroll_year', (int)$year)
+                        ->where('is_deleted', 'n')
+                        ->get('tbl_finance_payroll_batches')
+                        ->row();
+    }
+
+    /**
+     * Get list of payroll batches for school.
+     */
+    public function get_payroll_batches($school_id, $year = null)
+    {
+        $this->db->select('b.*, u.name as created_by_name')
+                 ->from('tbl_finance_payroll_batches b')
+                 ->join('tbl_users u', 'u.user_id = b.created_by', 'left')
+                 ->where('b.school_id', (int)$school_id)
+                 ->where('b.is_deleted', 'n');
+
+        if ($year) {
+            $this->db->where('b.payroll_year', (int)$year);
+        }
+
+        return $this->db->order_by('b.payroll_year', 'DESC')
+                        ->order_by('b.payroll_month', 'DESC')
+                        ->get()
+                        ->result();
+    }
+
+    /**
+     * Get single payroll batch by ID with item count.
+     */
+    public function get_payroll_batch($batch_id, $school_id)
+    {
+        return $this->db->select('b.*, u.name as created_by_name')
+                        ->from('tbl_finance_payroll_batches b')
+                        ->join('tbl_users u', 'u.user_id = b.created_by', 'left')
+                        ->where('b.id', (int)$batch_id)
+                        ->where('b.school_id', (int)$school_id)
+                        ->where('b.is_deleted', 'n')
+                        ->get()
+                        ->row();
+    }
+
+    /**
+     * Get items of a payroll batch with staff and designation info.
+     */
+    public function get_payroll_batch_items($batch_id, $school_id)
+    {
+        return $this->db->select('pi.*, s.full_name, s.employee_code, s.staff_type, s.email, s.phone, d.designation_name')
+                        ->from('tbl_finance_payroll_items pi')
+                        ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                        ->join('tbl_designations d', 'd.designation_id = s.designation_id', 'left')
+                        ->where('pi.batch_id', (int)$batch_id)
+                        ->where('pi.school_id', (int)$school_id)
+                        ->where('pi.is_deleted', 'n')
+                        ->order_by('s.full_name', 'ASC')
+                        ->get()
+                        ->result();
+    }
+
+    /**
+     * High Performance Payroll Preview Calculation (Zero N+1 Queries).
+     * 
+     * Batches active staff, active structures, items, and attendance records
+     * in 3 optimized queries instead of per-staff queries.
+     *
+     * @param int $school_id
+     * @param int $month (1-12)
+     * @param int $year (YYYY)
+     * @return array
+     */
+    public function calculate_monthly_payroll_preview($school_id, $month, $year)
+    {
+        $school_id = (int)$school_id;
+        $month     = (int)$month;
+        $year      = (int)$year;
+
+        $days_in_month = (int)cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $start_date = sprintf('%04d-%02d-01', $year, $month);
+        $end_date   = sprintf('%04d-%02d-%02d', $year, $month, $days_in_month);
+
+        // Query 1: Fetch all active staff with designations
+        $staff_list = $this->db->select('s.staff_id, s.full_name, s.employee_code, s.staff_type, s.salary, s.designation_id, d.designation_name')
+                               ->from('tbl_staff s')
+                               ->join('tbl_designations d', 'd.designation_id = s.designation_id', 'left')
+                               ->where('s.school_id', $school_id)
+                               ->where('s.status', 1)
+                               ->where('s.is_deleted', 'n')
+                               ->order_by('s.full_name', 'ASC')
+                               ->get()
+                               ->result();
+
+        if (empty($staff_list)) {
+            return [
+                'month'          => $month,
+                'year'           => $year,
+                'days_in_month'  => $days_in_month,
+                'staff_count'    => 0,
+                'staff_salaries' => [],
+                'totals'         => [
+                    'gross'                  => 0.00,
+                    'attendance_deductions'  => 0.00,
+                    'statutory_deductions'   => 0.00,
+                    'employer_contributions' => 0.00,
+                    'net'                    => 0.00,
+                ]
+            ];
+        }
+
+        $staff_ids = array_map(function($st) { return (int)$st->staff_id; }, $staff_list);
+
+        // Query 2: Fetch active salary structures for these staff
+        $structures = $this->db->select('ss.*')
+                               ->from('tbl_finance_salary_structures ss')
+                               ->where('ss.school_id', $school_id)
+                               ->where_in('ss.staff_id', $staff_ids)
+                               ->where('ss.status', 1)
+                               ->where('ss.is_deleted', 'n')
+                               ->get()
+                               ->result();
+
+        $structure_map = [];
+        $structure_ids = [];
+        foreach ($structures as $st) {
+            $structure_map[$st->staff_id] = $st;
+            $structure_ids[] = (int)$st->id;
+        }
+
+        // Query 2b: Fetch line items for active structures to identify Basic Salary and components
+        $items_map = [];
+        if (!empty($structure_ids)) {
+            $items = $this->db->select('si.*')
+                              ->from('tbl_finance_salary_structure_items si')
+                              ->where_in('si.structure_id', $structure_ids)
+                              ->order_by('si.sort_order', 'ASC')
+                              ->get()
+                              ->result();
+            foreach ($items as $itm) {
+                $items_map[$itm->structure_id][] = $itm;
+            }
+        }
+
+        // Query 3: Optional Attendance Aggregates (Indexed lookup)
+        // Groups attendance by staff for the target month
+        $att_map = [];
+        $att_rows = $this->db->select('staff_id, 
+                                       SUM(CASE WHEN attendance_status = "Present" THEN 1.0 
+                                                WHEN attendance_status = "Half Day" THEN 0.5 
+                                                ELSE 0.0 END) as present_days,
+                                       SUM(CASE WHEN attendance_status = "Absent" THEN 1.0 
+                                                WHEN attendance_status = "Half Day" THEN 0.5 
+                                                ELSE 0.0 END) as absent_days')
+                             ->from('tbl_staff_attendance')
+                             ->where('school_id', $school_id)
+                             ->where_in('staff_id', $staff_ids)
+                             ->where('attendance_date >=', $start_date)
+                             ->where('attendance_date <=', $end_date)
+                             ->where('is_deleted', 'n')
+                             ->group_by('staff_id')
+                             ->get()
+                             ->result();
+
+        foreach ($att_rows as $ar) {
+            $att_map[$ar->staff_id] = [
+                'present' => (float)$ar->present_days,
+                'absent'  => (float)$ar->absent_days,
+            ];
+        }
+
+        // Calculate payroll rows in memory
+        $calculated_staff = [];
+        $total_gross = 0.00;
+        $total_att_ded = 0.00;
+        $total_stat_ded = 0.00;
+        $total_employer = 0.00;
+        $total_net = 0.00;
+
+        foreach ($staff_list as $st) {
+            $sid = (int)$st->staff_id;
+            $struct = $structure_map[$sid] ?? null;
+
+            $gross = 0.00;
+            $basic = 0.00;
+            $stat_ded = 0.00;
+            $employer_contrib = 0.00;
+
+            if ($struct) {
+                $gross            = (float)$struct->gross_salary;
+                $stat_ded         = (float)$struct->total_deductions;
+                $employer_contrib = (float)($struct->employer_contributions ?? 0.00);
+
+                // Find basic component if present
+                $s_items = $items_map[$struct->id] ?? [];
+                foreach ($s_items as $si) {
+                    if (stripos($si->component_name, 'basic') !== false) {
+                        $basic = (float)$si->amount;
+                        break;
+                    }
+                }
+                if ($basic <= 0) {
+                    $basic = round($gross * 0.5, 2);
+                }
+            } else {
+                // Fallback to staff base salary profile if no custom structure assigned yet
+                $gross = (float)$st->salary;
+                $basic = round($gross * 0.5, 2);
+                $stat_ded = 0.00;
+                $employer_contrib = 0.00;
+            }
+
+            // Attendance calculations (Working days = month calendar days or 30 days standard)
+            $working_days = (float)$days_in_month;
+            $att_info = $att_map[$sid] ?? null;
+
+            $absent_days = 0.0;
+            $present_days = $working_days;
+
+            if ($att_info && ($att_info['present'] > 0 || $att_info['absent'] > 0)) {
+                $absent_days = (float)$att_info['absent'];
+                $present_days = max(0.0, $working_days - $absent_days);
+            }
+
+            // Per-day rate for attendance adjustment (Gross / working days)
+            $per_day_rate = $working_days > 0 ? ($gross / $working_days) : 0;
+            $att_deduction = round($per_day_rate * $absent_days, 2);
+
+            $net_salary = max(0.0, round($gross - $stat_ded - $att_deduction, 2));
+
+            $total_gross      += $gross;
+            $total_att_ded    += $att_deduction;
+            $total_stat_ded   += $stat_ded;
+            $total_employer   += $employer_contrib;
+            $total_net        += $net_salary;
+
+            $calculated_staff[] = [
+                'staff_id'               => $sid,
+                'full_name'              => $st->full_name,
+                'employee_code'          => $st->employee_code,
+                'staff_type'             => $st->staff_type,
+                'designation_name'       => $st->designation_name ?: 'Staff',
+                'structure_id'           => $struct ? (int)$struct->id : null,
+                'has_structure'          => !empty($struct),
+                'basic_salary'           => $basic,
+                'gross_salary'           => $gross,
+                'working_days'           => $working_days,
+                'present_days'           => $present_days,
+                'unpaid_leave_days'      => $absent_days,
+                'attendance_deduction'   => $att_deduction,
+                'statutory_deductions'   => $stat_ded,
+                'employer_contributions' => $employer_contrib,
+                'net_salary'             => $net_salary,
+            ];
+        }
+
+        return [
+            'month'          => $month,
+            'year'           => $year,
+            'days_in_month'  => $days_in_month,
+            'staff_count'    => count($calculated_staff),
+            'staff_salaries' => $calculated_staff,
+            'totals'         => [
+                'gross'                  => round($total_gross, 2),
+                'attendance_deductions'  => round($total_att_ded, 2),
+                'statutory_deductions'   => round($total_stat_ded, 2),
+                'employer_contributions' => round($total_employer, 2),
+                'net'                    => round($total_net, 2),
+            ]
+        ];
+    }
+
+    /**
+     * Confirm and Save Payroll Batch & Line Items in an ACID Transaction.
+     * Prevents duplicate payroll batches for the same month/year.
+     */
+    public function confirm_payroll_batch($payroll_data, $school_id, $user_id)
+    {
+        $school_id = (int)$school_id;
+        $month     = (int)$payroll_data['month'];
+        $year      = (int)$payroll_data['year'];
+        $items     = $payroll_data['items'] ?? [];
+
+        if ($month < 1 || $month > 12 || $year < 2000 || empty($items)) {
+            return ['success' => false, 'message' => 'Invalid payroll month or no staff records to process.'];
+        }
+
+        // Duplicate guard
+        $existing = $this->get_payroll_batch_by_period($school_id, $month, $year);
+        if ($existing) {
+            return ['success' => false, 'message' => "Payroll for " . date('F Y', mktime(0, 0, 0, $month, 10, $year)) . " has already been processed and confirmed (Batch: {$existing->batch_number})."];
+        }
+
+        $academic_year_id = function_exists('get_current_academic_year_id') ? get_current_academic_year_id($school_id) : 1;
+
+        $this->db->trans_begin();
+
+        try {
+            $batch_no = sprintf('PAY-%04d%02d-%04d', $year, $month, mt_rand(1000, 9999));
+
+            $tot_gross = 0.00;
+            $tot_att_ded = 0.00;
+            $tot_stat_ded = 0.00;
+            $tot_employer = 0.00;
+            $tot_net = 0.00;
+
+            foreach ($items as $itm) {
+                $tot_gross     += (float)($itm['gross_salary'] ?? 0);
+                $tot_att_ded   += (float)($itm['attendance_deduction'] ?? 0);
+                $tot_stat_ded  += (float)($itm['statutory_deductions'] ?? 0);
+                $tot_employer  += (float)($itm['employer_contributions'] ?? 0);
+                $tot_net       += (float)($itm['net_salary'] ?? 0);
+            }
+
+            $batch_header = [
+                'school_id'              => $school_id,
+                'academic_year_id'       => $academic_year_id,
+                'batch_number'           => $batch_no,
+                'payroll_month'          => $month,
+                'payroll_year'           => $year,
+                'total_staff'            => count($items),
+                'gross_amount'           => round($tot_gross, 2),
+                'attendance_deductions'  => round($tot_att_ded, 2),
+                'statutory_deductions'   => round($tot_stat_ded, 2),
+                'employer_contributions' => round($tot_employer, 2),
+                'net_amount'             => round($tot_net, 2),
+                'status'                 => 'Confirmed',
+                'remarks'                => trim($payroll_data['remarks'] ?? ('Confirmed payroll for ' . date('F Y', mktime(0, 0, 0, $month, 10, $year)))),
+                'created_by'             => $user_id,
+                'created_at'             => date('Y-m-d H:i:s'),
+                'updated_at'             => date('Y-m-d H:i:s'),
+            ];
+
+            $this->db->insert('tbl_finance_payroll_batches', $batch_header);
+            $batch_id = $this->db->insert_id();
+
+            // Bulk Insert Items
+            $batch_items_insert = [];
+            $seq = 1;
+
+            foreach ($items as $itm) {
+                $staff_id = (int)$itm['staff_id'];
+                $slip_no  = sprintf('SLIP-%04d%02d-%04d', $year, $month, $seq++);
+
+                // Lazy resolve staff ledger
+                $stf_ledger = $this->get_or_create_staff_ledger($school_id, $staff_id);
+                $ledger_id  = $stf_ledger ? (int)$stf_ledger->id : null;
+
+                $batch_items_insert[] = [
+                    'batch_id'               => $batch_id,
+                    'school_id'              => $school_id,
+                    'staff_id'               => $staff_id,
+                    'structure_id'           => !empty($itm['structure_id']) ? (int)$itm['structure_id'] : null,
+                    'ledger_id'              => $ledger_id,
+                    'payslip_number'         => $slip_no,
+                    'basic_salary'           => (float)($itm['basic_salary'] ?? 0),
+                    'gross_salary'           => (float)($itm['gross_salary'] ?? 0),
+                    'total_working_days'     => (float)($itm['working_days'] ?? 30),
+                    'present_days'           => (float)($itm['present_days'] ?? 30),
+                    'unpaid_leave_days'      => (float)($itm['unpaid_leave_days'] ?? 0),
+                    'attendance_deduction'   => (float)($itm['attendance_deduction'] ?? 0),
+                    'statutory_deductions'   => (float)($itm['statutory_deductions'] ?? 0),
+                    'employer_contributions' => (float)($itm['employer_contributions'] ?? 0),
+                    'net_salary'             => (float)($itm['net_salary'] ?? 0),
+                    'payment_status'         => 'Pending',
+                    'remarks'                => trim($itm['remarks'] ?? ''),
+                    'created_at'             => date('Y-m-d H:i:s'),
+                    'updated_at'             => date('Y-m-d H:i:s'),
+                ];
+            }
+
+            if (!empty($batch_items_insert)) {
+                $this->db->insert_batch('tbl_finance_payroll_items', $batch_items_insert);
+            }
+
+            // =========================================================================
+            // PHASE 10: Automatic Double-Entry Accounting Accrual Posting
+            // DR Account 5010 (Staff Salary Expense)
+            // CR Account 2010 (Staff Payable / Sub-Ledgers)
+            // Validation: DR == CR before posting
+            // =========================================================================
+            $salary_expense_acc = $this->get_account_by_code('5010', $school_id);
+            $salary_payable_acc = $this->get_account_by_code('2010', $school_id);
+
+            if (!$salary_expense_acc || !$salary_payable_acc) {
+                $this->initialize_school_finance_defaults($school_id);
+                $salary_expense_acc = $this->get_account_by_code('5010', $school_id);
+                $salary_payable_acc = $this->get_account_by_code('2010', $school_id);
+            }
+
+            if ($salary_expense_acc && $salary_payable_acc && $tot_net > 0) {
+                $period_name = date('F Y', mktime(0, 0, 0, $month, 10, $year));
+                $txn_no = sprintf('TXN-PAY-%04d%02d-%04d', $year, $month, $batch_id);
+
+                $txn_header = [
+                    'school_id'          => $school_id,
+                    'academic_year_id'   => $academic_year_id,
+                    'transaction_number' => $txn_no,
+                    'transaction_date'   => sprintf('%04d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year)),
+                    'transaction_type'   => 'Payroll_Accrual',
+                    'reference_type'     => 'tbl_finance_payroll_batches',
+                    'reference_id'       => $batch_id,
+                    'total_amount'       => round($tot_net, 2),
+                    'payment_method'     => 'Accrual',
+                    'description'        => "Monthly Payroll Accrual for {$period_name} ({$batch_no})",
+                    'status'             => 'Posted',
+                    'created_by'         => $user_id,
+                    'created_at'         => date('Y-m-d H:i:s'),
+                ];
+
+                $this->db->insert('tbl_finance_transactions', $txn_header);
+                $txn_id = $this->db->insert_id();
+
+                $txn_items = [];
+
+                // 1. Line 1: DR Staff Salary Expense (Debit total net salary)
+                $txn_items[] = [
+                    'transaction_id' => $txn_id,
+                    'school_id'      => $school_id,
+                    'account_id'     => (int)$salary_expense_acc->id,
+                    'ledger_id'      => null,
+                    'entry_type'     => 'Debit',
+                    'amount'         => round($tot_net, 2),
+                    'debit'          => round($tot_net, 2),
+                    'credit'         => 0.00,
+                    'description'    => "Staff Salary Expense for {$period_name}",
+                    'staff_id'       => null,
+                    'created_at'     => date('Y-m-d H:i:s'),
+                ];
+
+                // 2. Lines 2..N: CR Staff Salary Payable (Credit per-staff subledger)
+                $sum_credits = 0.00;
+                foreach ($batch_items_insert as $b_item) {
+                    $item_net = (float)$b_item['net_salary'];
+                    if ($item_net <= 0) continue;
+
+                    $sum_credits += $item_net;
+                    $txn_items[] = [
+                        'transaction_id' => $txn_id,
+                        'school_id'      => $school_id,
+                        'account_id'     => (int)$salary_payable_acc->id,
+                        'ledger_id'      => $b_item['ledger_id'],
+                        'entry_type'     => 'Credit',
+                        'amount'         => $item_net,
+                        'debit'          => 0.00,
+                        'credit'         => $item_net,
+                        'description'    => "Salary Payable ({$b_item['payslip_number']}) — {$period_name}",
+                        'staff_id'       => $b_item['staff_id'],
+                        'created_at'     => date('Y-m-d H:i:s'),
+                    ];
+                }
+
+                // Balance check: DR must equal CR
+                if (abs(round($tot_net, 2) - round($sum_credits, 2)) > 0.01) {
+                    $this->db->trans_rollback();
+                    return ['success' => false, 'message' => "Accounting imbalance detected: Total Debit (₹{$tot_net}) does not equal Total Credit (₹{$sum_credits})."];
+                }
+
+                $this->db->insert_batch('tbl_finance_transaction_items', $txn_items);
+
+                // Update batch with transaction ID
+                $this->db->where('id', $batch_id)->update('tbl_finance_payroll_batches', ['transaction_id' => $txn_id]);
+            }
+
+            if ($this->db->trans_status() === FALSE) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => 'Failed to save payroll records. Transaction rolled back.'];
+            }
+
+            $this->db->trans_commit();
+            return [
+                'success'      => true,
+                'batch_id'     => $batch_id,
+                'batch_number' => $batch_no,
+                'total_staff'  => count($items),
+                'net_amount'   => round($tot_net, 2),
+                'message'      => "Payroll for " . date('F Y', mktime(0, 0, 0, $month, 10, $year)) . " confirmed and accounting journal posted (DR 5010 / CR 2010)."
+            ];
+        } catch (\Exception $e) {
+            $this->db->trans_rollback();
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Phase 10 & 11: Get Salary Payable overview and staff balances.
+     */
+    public function get_salary_payable_overview($school_id, $filters = [])
+    {
+        $school_id = (int)$school_id;
+
+        // Fetch all confirmed batches with payable and paid status aggregated
+        $this->db->select('b.*, t.transaction_number, t.status as transaction_status,
+                           COALESCE(SUM(pi.paid_amount), 0) as batch_paid_amount,
+                           COALESCE(SUM(pi.net_salary - pi.paid_amount), 0) as batch_pending_amount,
+                           COUNT(CASE WHEN pi.payment_status != "Paid" THEN 1 END) as pending_staff_count')
+                 ->from('tbl_finance_payroll_batches b')
+                 ->join('tbl_finance_transactions t', 't.id = b.transaction_id', 'left')
+                 ->join('tbl_finance_payroll_items pi', 'pi.batch_id = b.id AND pi.is_deleted = "n"', 'left')
+                 ->where('b.school_id', $school_id)
+                 ->where('b.is_deleted', 'n');
+
+        if (!empty($filters['year'])) {
+            $this->db->where('b.payroll_year', (int)$filters['year']);
+        }
+
+        $batches = $this->db->group_by('b.id')
+                            ->order_by('b.payroll_year', 'DESC')
+                            ->order_by('b.payroll_month', 'DESC')
+                            ->get()
+                            ->result();
+
+        // Fetch staff-wise pending payable balances
+        $this->db->select('pi.staff_id, s.full_name, s.employee_code, s.staff_type, d.designation_name, l.id as ledger_id,
+                           SUM(pi.net_salary) as total_accrued,
+                           SUM(pi.paid_amount) as total_paid,
+                           SUM(pi.net_salary - pi.paid_amount) as total_payable_accrued,
+                           COUNT(pi.id) as months_accrued')
+                 ->from('tbl_finance_payroll_items pi')
+                 ->join('tbl_finance_payroll_batches b', 'b.id = pi.batch_id', 'inner')
+                 ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                 ->join('tbl_designations d', 'd.designation_id = s.designation_id', 'left')
+                 ->join('tbl_finance_ledgers l', 'l.id = pi.ledger_id', 'left')
+                 ->where('pi.school_id', $school_id)
+                 ->where('pi.payment_status !=', 'Paid')
+                 ->where('pi.is_deleted', 'n')
+                 ->where('b.is_deleted', 'n')
+                 ->where('b.status !=', 'Draft')
+                 ->where('b.status !=', 'Cancelled')
+                 ->where('s.is_deleted', 'n');
+
+        if (!empty($filters['batch_id'])) {
+            $this->db->where('pi.batch_id', (int)$filters['batch_id']);
+        }
+
+        $staff_payables = $this->db->group_by('pi.staff_id')
+                                  ->order_by('s.full_name', 'ASC')
+                                  ->get()
+                                  ->result();
+
+        // Total pending payable across all approved batches
+        $total_payable = 0.00;
+        $total_paid = 0.00;
+        foreach ($staff_payables as $sp) {
+            $total_payable += (float)$sp->total_payable_accrued;
+            $total_paid += (float)($sp->total_paid ?? 0);
+        }
+
+        $paid_stat = $this->db->select('COALESCE(SUM(paid_amount), 0) as all_paid')
+                              ->from('tbl_finance_payroll_items')
+                              ->where('school_id', $school_id)
+                              ->where('is_deleted', 'n')
+                              ->get()->row();
+
+        return [
+            'batches'        => $batches,
+            'staff_payables' => $staff_payables,
+            'total_payable'  => round($total_payable, 2),
+            'total_paid'     => round($paid_stat->all_paid ?? $total_paid, 2),
+            'staff_count'    => count($staff_payables)
+        ];
+    }
+
+    /**
+     * Phase 11: Get pending salary payables list for staff or batch selection dropdowns.
+     */
+    public function get_pending_salary_payables($school_id, $filters = [])
+    {
+        $school_id = (int)$school_id;
+
+        $this->db->select('pi.id as item_id, pi.batch_id, pi.staff_id, pi.payslip_number, pi.basic_salary,
+                           pi.gross_salary, pi.net_salary, pi.paid_amount, pi.payment_status,
+                           (pi.net_salary - pi.paid_amount) as due_amount,
+                           s.full_name, s.employee_code, s.staff_type, d.designation_name,
+                           b.batch_number, b.payroll_month, b.payroll_year, b.status as batch_status')
+                 ->from('tbl_finance_payroll_items pi')
+                 ->join('tbl_finance_payroll_batches b', 'b.id = pi.batch_id', 'inner')
+                 ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                 ->join('tbl_designations d', 'd.designation_id = s.designation_id', 'left')
+                 ->where('pi.school_id', $school_id)
+                 ->where('pi.payment_status !=', 'Paid')
+                 ->where('pi.is_deleted', 'n')
+                 ->where('b.is_deleted', 'n')
+                 ->where('b.status !=', 'Draft')
+                 ->where('b.status !=', 'Cancelled')
+                 ->where('s.is_deleted', 'n');
+
+        if (!empty($filters['staff_id'])) {
+            $this->db->where('pi.staff_id', (int)$filters['staff_id']);
+        }
+        if (!empty($filters['batch_id'])) {
+            $this->db->where('pi.batch_id', (int)$filters['batch_id']);
+        }
+
+        return $this->db->order_by('b.payroll_year', 'DESC')
+                        ->order_by('b.payroll_month', 'DESC')
+                        ->order_by('s.full_name', 'ASC')
+                        ->get()
+                        ->result();
+    }
+
+    /**
+     * Phase 11: Process Salary Payment against approved Salary Payable.
+     * 
+     * Flow:
+     * Salary Payable -> Select Staff/Payroll -> Select Bank/Cash Account -> Pay.
+     * 
+     * Accounting entry:
+     * DR Staff Salary Payable (Account 2010, Staff Sub-Ledger)
+     * CR Bank/Cash Account
+     * 
+     * Enforces:
+     * - Only allows payment against an approved salary payable.
+     * - Supports staff-wise or payroll-wise batch payment.
+     * - Validates DR == CR.
+     * - Prevents duplicate / overpayment (caps payment at due amount).
+     * - Updates tbl_finance_payroll_items.paid_amount & payment_status.
+     * - Updates tbl_finance_payroll_batches.status to 'Paid' when fully cleared.
+     * - Links payment voucher to tbl_finance_expenses & Staff Ledger.
+     */
+    public function process_salary_payment($payment_data, $school_id, $user_id)
+    {
+        $school_id = (int)$school_id;
+        $user_id   = (int)$user_id;
+
+        $staff_id           = !empty($payment_data['staff_id']) ? (int)$payment_data['staff_id'] : null;
+        $payroll_batch_id   = !empty($payment_data['payroll_batch_id']) ? (int)$payment_data['payroll_batch_id'] : null;
+        $payroll_item_id    = !empty($payment_data['payroll_item_id']) ? (int)$payment_data['payroll_item_id'] : null;
+        $payment_account_id = (int)($payment_data['payment_account_id'] ?? 0);
+        $amount             = round((float)($payment_data['amount'] ?? 0), 2);
+        $payment_date       = !empty($payment_data['payment_date']) ? $payment_data['payment_date'] : date('Y-m-d');
+        $payment_mode       = !empty($payment_data['payment_mode']) ? $payment_data['payment_mode'] : 'Bank Transfer';
+        $reference_no       = trim($payment_data['reference_no'] ?? '');
+        $description        = trim($payment_data['description'] ?? '');
+        $attachment         = $payment_data['attachment'] ?? null;
+        $academic_year_id   = !empty($payment_data['academic_year_id']) ? (int)$payment_data['academic_year_id'] : null;
+
+        if ($amount <= 0) {
+            return ['success' => false, 'message' => 'Payment amount must be greater than zero.'];
+        }
+
+        if ($payment_account_id <= 0) {
+            return ['success' => false, 'message' => 'Please select a valid Cash or Bank disbursement account.'];
+        }
+
+        $bank_cash_acc = $this->get_account_by_id($payment_account_id, $school_id);
+        if (!$bank_cash_acc) {
+            return ['success' => false, 'message' => 'Selected disbursement account not found.'];
+        }
+
+        $salary_payable_acc = $this->get_account_by_code('2010', $school_id);
+        if (!$salary_payable_acc) {
+            $this->initialize_school_finance_defaults($school_id);
+            $salary_payable_acc = $this->get_account_by_code('2010', $school_id);
+            if (!$salary_payable_acc) {
+                return ['success' => false, 'message' => 'Staff Salary Payable account (Code 2010) could not be resolved.'];
+            }
+        }
+
+        // Determine targets
+        $items_to_pay = [];
+
+        if ($payroll_item_id > 0) {
+            // Specific payroll item
+            $item = $this->db->select('pi.*, s.full_name, b.payroll_month, b.payroll_year, b.batch_number, b.status as batch_status')
+                             ->from('tbl_finance_payroll_items pi')
+                             ->join('tbl_finance_payroll_batches b', 'b.id = pi.batch_id', 'inner')
+                             ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                             ->where('pi.id', $payroll_item_id)
+                             ->where('pi.school_id', $school_id)
+                             ->where('pi.is_deleted', 'n')
+                             ->get()->row();
+
+            if (!$item) {
+                return ['success' => false, 'message' => 'Selected payroll payable item not found.'];
+            }
+            if ($item->batch_status === 'Draft' || $item->batch_status === 'Cancelled') {
+                return ['success' => false, 'message' => 'Cannot pay salary against an unapproved or cancelled payroll batch.'];
+            }
+            if ($item->payment_status === 'Paid') {
+                return ['success' => false, 'message' => 'This payroll item has already been fully paid.'];
+            }
+
+            $due = round((float)$item->net_salary - (float)$item->paid_amount, 2);
+            if ($amount > $due + 0.001) {
+                return ['success' => false, 'message' => "Payment amount (₹" . number_format($amount, 2) . ") exceeds outstanding payable balance (₹" . number_format($due, 2) . "). Overpayment is strictly prevented."];
+            }
+
+            $period_str = date('F Y', mktime(0, 0, 0, $item->payroll_month, 10, $item->payroll_year));
+            $stf_ledger = $this->get_or_create_staff_ledger($school_id, $item->staff_id);
+
+            $items_to_pay[] = [
+                'item_id'     => (int)$item->id,
+                'staff_id'    => (int)$item->staff_id,
+                'staff_name'  => $item->full_name,
+                'payslip_no'  => $item->payslip_number,
+                'batch_id'    => (int)$item->batch_id,
+                'period_str'  => $period_str,
+                'pay_amount'  => $amount,
+                'current_paid'=> (float)$item->paid_amount,
+                'net_salary'  => (float)$item->net_salary,
+                'ledger_id'   => $stf_ledger ? (int)$stf_ledger->id : null
+            ];
+            $staff_id = (int)$item->staff_id;
+            $payroll_batch_id = (int)$item->batch_id;
+
+        } elseif ($payroll_batch_id > 0 && empty($staff_id)) {
+            // Batch-Wise Payment: pay all pending items in this batch
+            $batch = $this->get_payroll_batch($payroll_batch_id, $school_id);
+            if (!$batch || $batch->status === 'Draft' || $batch->status === 'Cancelled') {
+                return ['success' => false, 'message' => 'Selected payroll batch not found or is not approved.'];
+            }
+
+            $pending_items = $this->db->select('pi.*, s.full_name')
+                                      ->from('tbl_finance_payroll_items pi')
+                                      ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                                      ->where('pi.batch_id', $payroll_batch_id)
+                                      ->where('pi.school_id', $school_id)
+                                      ->where('pi.payment_status !=', 'Paid')
+                                      ->where('pi.is_deleted', 'n')
+                                      ->order_by('pi.id', 'ASC')
+                                      ->get()->result();
+
+            if (empty($pending_items)) {
+                return ['success' => false, 'message' => 'No pending payable items found for this batch. Batch is already fully paid.'];
+            }
+
+            $total_batch_due = 0.00;
+            foreach ($pending_items as $pi) {
+                $total_batch_due += round((float)$pi->net_salary - (float)$pi->paid_amount, 2);
+            }
+            $total_batch_due = round($total_batch_due, 2);
+
+            if ($amount > $total_batch_due + 0.001) {
+                return ['success' => false, 'message' => "Payment amount (₹" . number_format($amount, 2) . ") exceeds total pending batch payable (₹" . number_format($total_batch_due, 2) . "). Overpayment is strictly prevented."];
+            }
+
+            $period_str = date('F Y', mktime(0, 0, 0, $batch->payroll_month, 10, $batch->payroll_year));
+            $remaining_to_allocate = $amount;
+
+            foreach ($pending_items as $pi) {
+                if ($remaining_to_allocate <= 0) break;
+                $item_due = round((float)$pi->net_salary - (float)$pi->paid_amount, 2);
+                $alloc = min($remaining_to_allocate, $item_due);
+                $remaining_to_allocate = round($remaining_to_allocate - $alloc, 2);
+
+                $stf_ledger = $this->get_or_create_staff_ledger($school_id, $pi->staff_id);
+
+                $items_to_pay[] = [
+                    'item_id'     => (int)$pi->id,
+                    'staff_id'    => (int)$pi->staff_id,
+                    'staff_name'  => $pi->full_name,
+                    'payslip_no'  => $pi->payslip_number,
+                    'batch_id'    => (int)$pi->batch_id,
+                    'period_str'  => $period_str,
+                    'pay_amount'  => $alloc,
+                    'current_paid'=> (float)$pi->paid_amount,
+                    'net_salary'  => (float)$pi->net_salary,
+                    'ledger_id'   => $stf_ledger ? (int)$stf_ledger->id : null
+                ];
+            }
+
+        } elseif ($staff_id > 0) {
+            // Staff-Wise payment: find pending items for this staff (FIFO order by batch date)
+            $this->db->select('pi.*, s.full_name, b.payroll_month, b.payroll_year, b.batch_number')
+                     ->from('tbl_finance_payroll_items pi')
+                     ->join('tbl_finance_payroll_batches b', 'b.id = pi.batch_id', 'inner')
+                     ->join('tbl_staff s', 's.staff_id = pi.staff_id', 'inner')
+                     ->where('pi.staff_id', $staff_id)
+                     ->where('pi.school_id', $school_id)
+                     ->where('pi.payment_status !=', 'Paid')
+                     ->where('pi.is_deleted', 'n')
+                     ->where('b.is_deleted', 'n')
+                     ->where('b.status !=', 'Draft')
+                     ->where('b.status !=', 'Cancelled')
+                     ->order_by('b.payroll_year', 'ASC')
+                     ->order_by('b.payroll_month', 'ASC')
+                     ->order_by('pi.id', 'ASC');
+
+            if ($payroll_batch_id > 0) {
+                $this->db->where('pi.batch_id', $payroll_batch_id);
+            }
+
+            $pending_items = $this->db->get()->result();
+
+            if (empty($pending_items)) {
+                return ['success' => false, 'message' => 'No approved pending salary payable found for this staff member.'];
+            }
+
+            $total_staff_due = 0.00;
+            foreach ($pending_items as $pi) {
+                $total_staff_due += round((float)$pi->net_salary - (float)$pi->paid_amount, 2);
+            }
+            $total_staff_due = round($total_staff_due, 2);
+
+            if ($amount > $total_staff_due + 0.001) {
+                return ['success' => false, 'message' => "Payment amount (₹" . number_format($amount, 2) . ") exceeds total pending payable (₹" . number_format($total_staff_due, 2) . ") for this staff member. Overpayment is strictly prevented."];
+            }
+
+            $remaining_to_allocate = $amount;
+            $stf_ledger = $this->get_or_create_staff_ledger($school_id, $staff_id);
+
+            foreach ($pending_items as $pi) {
+                if ($remaining_to_allocate <= 0) break;
+                $item_due = round((float)$pi->net_salary - (float)$pi->paid_amount, 2);
+                $alloc = min($remaining_to_allocate, $item_due);
+                $remaining_to_allocate = round($remaining_to_allocate - $alloc, 2);
+
+                $period_str = date('F Y', mktime(0, 0, 0, $pi->payroll_month, 10, $pi->payroll_year));
+
+                $items_to_pay[] = [
+                    'item_id'     => (int)$pi->id,
+                    'staff_id'    => (int)$pi->staff_id,
+                    'staff_name'  => $pi->full_name,
+                    'payslip_no'  => $pi->payslip_number,
+                    'batch_id'    => (int)$pi->batch_id,
+                    'period_str'  => $period_str,
+                    'pay_amount'  => $alloc,
+                    'current_paid'=> (float)$pi->paid_amount,
+                    'net_salary'  => (float)$pi->net_salary,
+                    'ledger_id'   => $stf_ledger ? (int)$stf_ledger->id : null
+                ];
+            }
+        } else {
+            return ['success' => false, 'message' => 'Please select either a Staff Member or an Approved Payroll Batch.'];
+        }
+
+        if (empty($items_to_pay)) {
+            return ['success' => false, 'message' => 'No payable allocation could be computed.'];
+        }
+
+        // =========================================================================
+        // ATOMIC DATABASE TRANSACTION
+        // =========================================================================
+        $this->db->trans_begin();
+
+        try {
+            $total_disbursed = 0.00;
+            $batches_affected = [];
+
+            $first_staff_name = $items_to_pay[0]['staff_name'];
+            $first_staff_id   = $items_to_pay[0]['staff_id'];
+            $is_single_staff  = true;
+            foreach ($items_to_pay as $itp) {
+                if ($itp['staff_id'] !== $first_staff_id) {
+                    $is_single_staff = false;
+                    break;
+                }
+            }
+
+            // Generate unique voucher number
+            $rand = strtoupper(substr(uniqid(), -4));
+            $next_num = $this->db->where('school_id', $school_id)->count_all_results('tbl_finance_expenses') + 1;
+            $voucher_no = 'PAY-' . date('Ymd') . '-' . str_pad($next_num, 4, '0', STR_PAD_LEFT) . '-' . $rand;
+
+            $payee_display = $is_single_staff ? $first_staff_name : ('Multiple Staff (' . count($items_to_pay) . ' disbursements)');
+
+            $desc_text = !empty($description) ? $description : ("Salary Payment to " . $payee_display);
+
+            // Record Primary Expense Voucher
+            $exp_data = [
+                'school_id'          => $school_id,
+                'academic_year_id'   => $academic_year_id,
+                'submodule'          => 'Staff_Payout',
+                'expense_number'     => $voucher_no,
+                'expense_date'       => $payment_date,
+                'expense_type_id'    => 0,
+                'expense_account_id' => (int)$salary_payable_acc->id, // DR 2010 Staff Salary Payable
+                'payment_account_id' => $payment_account_id,          // CR Bank/Cash
+                'staff_id'           => $is_single_staff ? $first_staff_id : null,
+                'payroll_batch_id'   => $payroll_batch_id,
+                'payroll_item_id'    => (count($items_to_pay) === 1) ? $items_to_pay[0]['item_id'] : null,
+                'party_type'         => 'Staff',
+                'payout_type'        => 'Salary',
+                'payee_name'         => $payee_display,
+                'amount'             => $amount,
+                'payment_mode'       => $payment_mode,
+                'reference_no'       => $reference_no,
+                'description'        => $desc_text,
+                'attachment'         => $attachment,
+                'status'             => 'Paid',
+                'created_by'         => $user_id,
+                'created_at'         => date('Y-m-d H:i:s')
+            ];
+
+            $this->db->insert('tbl_finance_expenses', $exp_data);
+            $expense_id = (int)$this->db->insert_id();
+
+            // Prepare Double-Entry Journal Lines
+            $journal_lines = [];
+            $sum_debits = 0.00;
+
+            foreach ($items_to_pay as $itp) {
+                $pay_amt = $itp['pay_amount'];
+                if ($pay_amt <= 0) continue;
+
+                $total_disbursed += $pay_amt;
+                $sum_debits      += $pay_amt;
+                $batches_affected[$itp['batch_id']] = true;
+
+                // Update tbl_finance_payroll_items
+                $new_paid   = round($itp['current_paid'] + $pay_amt, 2);
+                $new_status = ($new_paid >= round($itp['net_salary'], 2)) ? 'Paid' : 'Partially_Paid';
+
+                $this->db->where('id', $itp['item_id'])->update('tbl_finance_payroll_items', [
+                    'paid_amount'    => $new_paid,
+                    'payment_status' => $new_status,
+                    'updated_at'     => date('Y-m-d H:i:s')
+                ]);
+
+                // Journal Line: DR Staff Salary Payable (Code 2010), with staff sub-ledger
+                $journal_lines[] = [
+                    'account_id'  => (int)$salary_payable_acc->id,
+                    'ledger_id'   => $itp['ledger_id'],
+                    'entry_type'  => 'Debit',
+                    'amount'      => $pay_amt,
+                    'staff_id'    => $itp['staff_id'],
+                    'description' => "Salary Payment ({$itp['payslip_no']}) — {$itp['period_str']} to {$itp['staff_name']}"
+                ];
+            }
+
+            // Journal Line: CR Cash/Bank Account (Total disbursed amount)
+            $journal_lines[] = [
+                'account_id'  => $payment_account_id,
+                'ledger_id'   => null,
+                'entry_type'  => 'Credit',
+                'amount'      => round($total_disbursed, 2),
+                'staff_id'    => $is_single_staff ? $first_staff_id : null,
+                'description' => "Salary Disbursement from {$bank_cash_acc->account_name} for {$voucher_no}"
+            ];
+
+            // VALIDATION: DR == CR
+            if (abs(round($sum_debits, 2) - round($total_disbursed, 2)) > 0.01) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Accounting imbalance detected: DR (₹{$sum_debits}) != CR (₹{$total_disbursed})."];
+            }
+
+            // Post double entry transaction via post_double_entry_transaction
+            $header_data = [
+                'academic_year_id' => $academic_year_id,
+                'transaction_date' => $payment_date,
+                'transaction_type' => 'Staff_Payout',
+                'custom_prefix'    => 'PAY-',
+                'reference_type'   => 'tbl_finance_expenses',
+                'reference_id'     => $expense_id,
+                'total_amount'     => round($total_disbursed, 2),
+                'payment_method'   => $payment_mode,
+                'reference_no'     => $reference_no,
+                'party_type'       => 'Staff',
+                'party_name'       => $payee_display,
+                'party_id'         => $is_single_staff ? $first_staff_id : null,
+                'attachment'       => $attachment,
+                'description'      => $desc_text,
+                'created_by'       => $user_id
+            ];
+
+            $tx_res = $this->post_double_entry_transaction($school_id, $header_data, $journal_lines);
+            if (!$tx_res['success']) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => 'Double-entry posting failed: ' . $tx_res['message']];
+            }
+
+            $txn_id = $tx_res['transaction_id'];
+            $this->db->where('id', $expense_id)->update('tbl_finance_expenses', ['transaction_id' => $txn_id]);
+
+            // Check if affected batches are now completely Paid
+            foreach (array_keys($batches_affected) as $b_id) {
+                $unpaid_count = $this->db->where('batch_id', $b_id)
+                                         ->where('school_id', $school_id)
+                                         ->where('payment_status !=', 'Paid')
+                                         ->where('is_deleted', 'n')
+                                         ->count_all_results('tbl_finance_payroll_items');
+
+                if ($unpaid_count === 0) {
+                    $this->db->where('id', $b_id)->update('tbl_finance_payroll_batches', [
+                        'status'     => 'Paid',
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
+            }
+
+            if ($this->db->trans_status() === FALSE) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => 'Database error occurred during salary payment processing. Transaction rolled back.'];
+            }
+
+            $this->db->trans_commit();
+
+            return [
+                'success'        => true,
+                'voucher_number' => $voucher_no,
+                'transaction_id' => $txn_id,
+                'expense_id'     => $expense_id,
+                'total_amount'   => round($total_disbursed, 2),
+                'items_count'    => count($items_to_pay),
+                'message'        => "Salary payment of ₹" . number_format($total_disbursed, 2) . " processed successfully! Voucher: {$voucher_no}. Accounting entry posted (DR Staff Salary Payable / CR {$bank_cash_acc->account_name})."
+            ];
+
+        } catch (\Exception $e) {
+            $this->db->trans_rollback();
+            return ['success' => false, 'message' => 'Exception during payment: ' . $e->getMessage()];
+        }
+    }
 }
+
 

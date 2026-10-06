@@ -77,6 +77,9 @@
                   </td>
                   <td class="px-4 py-3 text-right whitespace-nowrap">
                     <div class="flex items-center justify-end gap-1">
+                      <a href="<?php echo site_url('finance/student_statement/' . $pf->student_id); ?>" class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high transition-colors inline-block" title="Student Ledger Statement">
+                        <span class="material-symbols-outlined text-[16px]">menu_book</span>
+                      </a>
                       <a href="<?php echo site_url('finance/student_invoice/' . $pf->id); ?>" class="p-1 rounded text-primary hover:bg-primary/10 transition-colors inline-block" title="View Invoice">
                         <span class="material-symbols-outlined text-[16px]">visibility</span>
                       </a>

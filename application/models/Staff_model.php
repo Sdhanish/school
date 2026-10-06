@@ -70,18 +70,37 @@ class Staff_model extends CI_Model {
         ];
     }
 
+    /**
+     * Check if academic_group_id column exists on tbl_staff
+     */
+    public function has_academic_group_col()
+    {
+        static $has_col = null;
+        if ($has_col === null) {
+            $has_col = $this->db->field_exists('academic_group_id', 'tbl_staff');
+        }
+        return $has_col;
+    }
+
     public function get_all($filters = array())
     {
         $school_id = !empty($filters['school_id']) ? (int)$filters['school_id'] : get_current_school_id();
 
+        $ag_select = $this->has_academic_group_col() ? 's.academic_group_id, ag.group_name,' : 'NULL AS academic_group_id, NULL AS group_name,';
+
         $this->db
-            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.status, s.staff_type, s.category, s.academic_group_id, ag.group_name,
+            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.status, s.staff_type, s.category, ' . $ag_select . '
                       SUBSTRING_INDEX(s.full_name, " ", 1) AS first_name,
                       TRIM(SUBSTRING(s.full_name, LENGTH(SUBSTRING_INDEX(s.full_name, " ", 1)) + 1)) AS last_name,
                       s.category AS designation_category,
                       dg.designation_name')
-            ->from('tbl_staff s')
-            ->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left')
+            ->from('tbl_staff s');
+
+        if ($this->has_academic_group_col()) {
+            $this->db->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left');
+        }
+
+        $this->db
             ->join('tbl_designations dg', 'dg.designation_id = s.designation_id AND dg.school_id = s.school_id', 'left')
             ->where('s.status >=', 0)
             ->where('s.is_deleted', 'n')
@@ -91,7 +110,7 @@ class Staff_model extends CI_Model {
         if (!empty($filters['staff_type'])) {
             $this->db->where('s.staff_type', $filters['staff_type']);
         }
-        if (!empty($filters['academic_group_id'])) {
+        if (!empty($filters['academic_group_id']) && $this->has_academic_group_col()) {
             $this->db->where('s.academic_group_id', (int)$filters['academic_group_id']);
         }
         if (!empty($filters['designation_id'])) {
@@ -128,7 +147,7 @@ class Staff_model extends CI_Model {
         if (!empty($filters['staff_type'])) {
             $this->db->where('s.staff_type', $filters['staff_type']);
         }
-        if (!empty($filters['academic_group_id'])) {
+        if (!empty($filters['academic_group_id']) && $this->has_academic_group_col()) {
             $this->db->where('s.academic_group_id', (int)$filters['academic_group_id']);
         }
         if (!empty($filters['designation_id'])) {
@@ -170,11 +189,18 @@ class Staff_model extends CI_Model {
 
         $school_id = !empty($filters['school_id']) ? (int)$filters['school_id'] : get_current_school_id();
 
+        $ag_select = $this->has_academic_group_col() ? 's.academic_group_id, ag.group_name,' : 'NULL AS academic_group_id, NULL AS group_name,';
+
         $this->db
-            ->select('s.staff_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.status, s.staff_type, s.academic_group_id, ag.group_name,
+            ->select('s.staff_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.status, s.staff_type, ' . $ag_select . '
                       dg.designation_name')
-            ->from('tbl_staff s')
-            ->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left')
+            ->from('tbl_staff s');
+
+        if ($this->has_academic_group_col()) {
+            $this->db->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left');
+        }
+
+        $this->db
             ->join('tbl_designations dg', 'dg.designation_id = s.designation_id AND dg.school_id = s.school_id', 'left')
             ->where('s.is_deleted', 'n')
             ->where('s.school_id', $school_id);
@@ -182,7 +208,7 @@ class Staff_model extends CI_Model {
         if (!empty($filters['staff_type'])) {
             $this->db->where('s.staff_type', $filters['staff_type']);
         }
-        if (!empty($filters['academic_group_id'])) {
+        if (!empty($filters['academic_group_id']) && $this->has_academic_group_col()) {
             $this->db->where('s.academic_group_id', (int)$filters['academic_group_id']);
         }
         if (!empty($filters['designation_id'])) {
@@ -224,8 +250,10 @@ class Staff_model extends CI_Model {
     {
         $school_id = !empty($filters['school_id']) ? (int)$filters['school_id'] : get_current_school_id();
 
+        $ag_select = $this->has_academic_group_col() ? 's.academic_group_id, ag.group_name,' : 'NULL AS academic_group_id, NULL AS group_name,';
+
         $this->db
-            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.qualification, s.experience, s.specialization, s.joining_date, s.status, s.staff_type, s.category, s.academic_group_id, ag.group_name,
+            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.qualification, s.experience, s.specialization, s.joining_date, s.status, s.staff_type, s.category, ' . $ag_select . '
                       SUBSTRING_INDEX(s.full_name, " ", 1) AS first_name,
                       TRIM(SUBSTRING(s.full_name, LENGTH(SUBSTRING_INDEX(s.full_name, " ", 1)) + 1)) AS last_name,
                       s.category AS designation_category,
@@ -234,8 +262,13 @@ class Staff_model extends CI_Model {
                       (SELECT GROUP_CONCAT(DISTINCT sub.subject_name SEPARATOR ", ") FROM tbl_subjects sub WHERE sub.teacher_id = s.staff_id AND sub.status = 1 AND sub.school_id = ' . (int)$school_id . ') as subject_specialization,
                       (SELECT GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ", ") FROM tbl_subjects sub JOIN tbl_classes c ON c.class_id = sub.class_id WHERE sub.teacher_id = s.staff_id AND sub.status = 1 AND sub.school_id = ' . (int)$school_id . ') as classes_handled,
                       (SELECT GROUP_CONCAT(DISTINCT CONCAT(c.class_name, " - ", `div`.division_name) SEPARATOR ", ") FROM tbl_divisions `div` JOIN tbl_classes c ON c.class_id = `div`.class_id WHERE (`div`.class_teacher_id = s.staff_id OR `div`.division_id IN (SELECT ct.division_id FROM tbl_class_teachers ct WHERE ct.staff_id = s.staff_id AND ct.status = 1 AND ct.is_deleted = "n" AND ct.school_id = ' . (int)$school_id . ')) AND `div`.status = 1 AND `div`.is_deleted = "n" AND `div`.school_id = ' . (int)$school_id . ') as sections_handled')
-            ->from('tbl_staff s')
-            ->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left')
+            ->from('tbl_staff s');
+
+        if ($this->has_academic_group_col()) {
+            $this->db->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left');
+        }
+
+        $this->db
             ->join('tbl_designations dg', 'dg.designation_id = s.designation_id AND dg.school_id = s.school_id', 'left')
             ->where('s.status >=', 0)
             ->where('s.is_deleted', 'n')
@@ -246,7 +279,7 @@ class Staff_model extends CI_Model {
                 ->or_where('s.category', 'Teaching')
             ->group_end();
 
-        if (!empty($filters['academic_group_id'])) {
+        if (!empty($filters['academic_group_id']) && $this->has_academic_group_col()) {
             $this->db->where('s.academic_group_id', (int)$filters['academic_group_id']);
         }
         if (!empty($filters['designation_id'])) {
@@ -287,14 +320,21 @@ class Staff_model extends CI_Model {
     {
         $school_id = !empty($filters['school_id']) ? (int)$filters['school_id'] : get_current_school_id();
 
+        $ag_select = $this->has_academic_group_col() ? 's.academic_group_id, ag.group_name,' : 'NULL AS academic_group_id, NULL AS group_name,';
+
         $this->db
-            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.qualification, s.experience, s.specialization, s.joining_date, s.status, s.staff_type, s.category, s.academic_group_id, ag.group_name,
+            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.email, s.phone, s.photo, s.qualification, s.experience, s.specialization, s.joining_date, s.status, s.staff_type, s.category, ' . $ag_select . '
                       SUBSTRING_INDEX(s.full_name, " ", 1) AS first_name,
                       TRIM(SUBSTRING(s.full_name, LENGTH(SUBSTRING_INDEX(s.full_name, " ", 1)) + 1)) AS last_name,
                       s.category AS designation_category,
                       dg.designation_name')
-            ->from('tbl_staff s')
-            ->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left')
+            ->from('tbl_staff s');
+
+        if ($this->has_academic_group_col()) {
+            $this->db->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left');
+        }
+
+        $this->db
             ->join('tbl_designations dg', 'dg.designation_id = s.designation_id AND dg.school_id = s.school_id', 'left')
             ->where('s.status >=', 0)
             ->where('s.is_deleted', 'n')
@@ -321,15 +361,23 @@ class Staff_model extends CI_Model {
     {
         $school_id = $school_id ? (int)$school_id : get_current_school_id();
 
-        return $this->db
-            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.date_of_birth, s.blood_group, s.phone, s.alternate_phone, s.email, s.address, s.staff_type, s.academic_group_id, s.category, s.designation_id, s.joining_date, s.salary, s.qualification, s.experience, s.specialization, s.employment_status, s.photo, s.status, s.created_at, s.updated_at, s.is_deleted,
-                      ag.group_name,
+        $ag_select = $this->has_academic_group_col() ? 's.academic_group_id,' : 'NULL AS academic_group_id,';
+        $ag_group_name = $this->has_academic_group_col() ? 'ag.group_name,' : 'NULL AS group_name,';
+
+        $this->db
+            ->select('s.staff_id, s.school_id, s.employee_code, s.full_name, s.gender, s.date_of_birth, s.blood_group, s.phone, s.alternate_phone, s.email, s.address, s.staff_type, ' . $ag_select . ' s.category, s.designation_id, s.joining_date, s.salary, s.qualification, s.experience, s.specialization, s.employment_status, s.photo, s.status, s.created_at, s.updated_at, s.is_deleted,
+                      ' . $ag_group_name . '
                       SUBSTRING_INDEX(s.full_name, " ", 1) AS first_name,
                       TRIM(SUBSTRING(s.full_name, LENGTH(SUBSTRING_INDEX(s.full_name, " ", 1)) + 1)) AS last_name,
                       s.category AS designation_category,
                       dg.designation_name')
-            ->from('tbl_staff s')
-            ->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left')
+            ->from('tbl_staff s');
+
+        if ($this->has_academic_group_col()) {
+            $this->db->join('tbl_academic_groups ag', 'ag.academic_group_id = s.academic_group_id AND ag.school_id = s.school_id AND ag.is_deleted = \'n\'', 'left');
+        }
+
+        return $this->db
             ->join('tbl_designations dg', 'dg.designation_id = s.designation_id AND dg.school_id = s.school_id', 'left')
             ->where('s.staff_id', (int)$id)
             ->where('s.school_id', $school_id)
