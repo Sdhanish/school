@@ -102,8 +102,7 @@
                         <div class="font-bold text-on-surface text-body-sm"><?php echo html_escape($student->first_name . ' ' . $student->last_name); ?></div>
                         <div class="text-[11px] text-on-surface-variant font-mono">
                           Adm: <?php echo html_escape($student->admission_number ?? $student->admission_no ?? '—'); ?> &bull; 
-                          Class: <?php echo html_escape(($student->class_name ?? '') . (!empty($student->division_name) ? ' - ' . $student->division_name : '')); ?> &bull; 
-                          ID: <span class="text-primary font-bold">#<?php echo (int)$student->student_id; ?></span>
+                          Class: <?php echo html_escape(($student->class_name ?? '') . (!empty($student->division_name) ? ' - ' . $student->division_name : '')); ?>
                         </div>
                       </div>
                     </div>
@@ -448,8 +447,7 @@
                       <div class="font-bold text-on-surface text-body-sm">${st.first_name} ${st.last_name}</div>
                       <div class="text-[11px] text-on-surface-variant font-mono">
                         Adm: <strong class="text-on-surface">${st.admission_number || '—'}</strong> &bull; 
-                        Class: <strong class="text-on-surface">${st.class_name || 'General'}${secStr}</strong>${rollStr} &bull; 
-                        <span class="text-primary font-semibold">ID: #${st.student_id}</span>
+                        Class: <strong class="text-on-surface">${st.class_name || 'General'}${secStr}</strong>${rollStr}
                       </div>
                     </div>
                   </div>

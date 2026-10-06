@@ -1178,7 +1178,7 @@ class Finance_model extends CI_Model {
         }
 
         $ledgers = $this->db->group_by('l.id')
-                            ->order_by('s.first_name ASC, s.last_name ASC')
+                            ->order_by('s.student_id DESC, l.id DESC')
                             ->get()->result();
 
         foreach ($ledgers as $l) {

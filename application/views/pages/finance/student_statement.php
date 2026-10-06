@@ -44,7 +44,7 @@ if (!empty($student->division_name)) {
               <option value="">Switch Student...</option>
               <?php foreach ($students_list as $st_item): ?>
                 <option value="<?php echo $st_item->student_id; ?>" <?php echo ((int)$st_item->student_id === (int)$student_id) ? 'selected' : ''; ?>>
-                  <?php echo html_escape($st_item->first_name . ' ' . $st_item->last_name . ' (' . ($st_item->admission_number ?: 'ID:' . $st_item->student_id) . ')'); ?>
+                  <?php echo html_escape($st_item->first_name . ' ' . $st_item->last_name . (!empty($st_item->admission_number) ? ' (' . $st_item->admission_number . ')' : '')); ?>
                 </option>
               <?php endforeach; ?>
             </select>

@@ -758,7 +758,7 @@ class Finance extends MY_Controller {
         $students_list = $this->db->select('student_id, first_name, last_name, admission_number')
                                   ->where('school_id', $this->school_id)
                                   ->where('is_deleted', 'n')
-                                  ->order_by('first_name ASC, last_name ASC')
+                                  ->order_by('student_id DESC')
                                   ->get('tbl_students')
                                   ->result();
 
@@ -840,7 +840,7 @@ class Finance extends MY_Controller {
         $all_students = $this->db->select('student_id, first_name, last_name, admission_number')
                                  ->where('school_id', $this->school_id)
                                  ->where('is_deleted', 'n')
-                                 ->order_by('first_name ASC, last_name ASC')
+                                 ->order_by('student_id DESC')
                                  ->get('tbl_students')
                                  ->result();
 
@@ -1747,7 +1747,12 @@ class Finance extends MY_Controller {
         // Check if current month/year already has a confirmed batch
         $existing_batch = $this->Finance_model->get_payroll_batch_by_period($this->school_id, $selected_month, $selected_year);
 
-        // Calculate preview dynamically if not already viewing an archived batch
+        if (!$selected_batch && $existing_batch) {
+            $selected_batch = $existing_batch;
+            $batch_items    = $this->Finance_model->get_payroll_batch_items($existing_batch->id, $this->school_id);
+        }
+
+        // Calculate preview dynamically if not already viewing an archived/confirmed batch
         $preview_data = null;
         if (!$selected_batch) {
             $preview_data = $this->Finance_model->calculate_monthly_payroll_preview($this->school_id, $selected_month, $selected_year);

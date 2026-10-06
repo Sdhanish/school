@@ -85,7 +85,7 @@
           <option value="">-- Jump to Statement --</option>
           <?php foreach ($all_students as $st): ?>
             <option value="<?php echo $st->student_id; ?>">
-              <?php echo html_escape($st->first_name . ' ' . $st->last_name . ' (' . ($st->admission_number ?: 'ID:' . $st->student_id) . ')'); ?>
+              <?php echo html_escape($st->first_name . ' ' . $st->last_name . (!empty($st->admission_number) ? ' (' . $st->admission_number . ')' : '')); ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -193,10 +193,10 @@
   document.addEventListener('DOMContentLoaded', function() {
     var table = document.getElementById('student-ledger-table');
     if (table && typeof $.fn.DataTable !== 'undefined') {
-      $(table).DataTable({
+      var dt = $(table).DataTable({
         responsive: true,
         pageLength: 25,
-        order: [[7, 'desc']],
+        order: [],
         language: {
           emptyTable: "No student ledgers found for the selected school.",
           search: "Quick search:",
@@ -208,6 +208,14 @@
         columnDefs: [
           { orderable: false, targets: [0, 8] }
         ]
+      });
+
+      // Keep sequential number 1, 2, 3, 4... consistent across pagination, search, and sorting
+      dt.on('draw.dt', function() {
+        var info = dt.page.info();
+        dt.column(0, { search: 'applied', order: 'applied', page: 'current' }).nodes().each(function(cell, i) {
+          cell.innerHTML = info.start + i + 1;
+        });
       });
     }
   });

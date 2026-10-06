@@ -104,7 +104,7 @@ if ($selected_batch) {
   $tot_stat_ded = (float)$preview_data['totals']['statutory_deductions'];
   $tot_employer = (float)$preview_data['totals']['employer_contributions'];
   $tot_net = (float)$preview_data['totals']['net'];
-  $staff_count = (int)$preview_data['staff_count'];
+  $staff_count = (int)($preview_data['staff_count'] ?? count($preview_data['staff_salaries'] ?? []));
 }
 ?>
 
@@ -308,13 +308,6 @@ if ($selected_batch) {
             </tr>
           <?php endforeach; ?>
 
-        <?php else: ?>
-          <tr>
-            <td colspan="10" class="px-4 py-12 text-center text-on-surface-variant">
-              <span class="material-symbols-outlined text-[44px] block mb-2 text-on-surface-variant/40">groups</span>
-              No active staff found for this school or period.
-            </td>
-          </tr>
         <?php endif; ?>
       </tbody>
     </table>
@@ -494,7 +487,9 @@ document.addEventListener('DOMContentLoaded', function() {
         search: "Filter employee:",
         lengthMenu: "Show _MENU_ staff",
         info: "_START_ – _END_ of _TOTAL_ staff",
-        paginate: { next: 'Next →', previous: '← Prev' }
+        infoEmpty: "0 staff",
+        paginate: { next: 'Next →', previous: '← Prev' },
+        emptyTable: '<div class="py-12 text-center text-on-surface-variant"><span class="material-symbols-outlined text-[44px] block mb-2 text-on-surface-variant/40">groups</span>No active staff found for this school or period.</div>'
       },
       columnDefs: [{ orderable: false, targets: [0, 9] }]
     });
